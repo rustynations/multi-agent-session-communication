@@ -194,6 +194,21 @@ Then go back to Step 4. That loop IS the session.
 | `git add -A` on a shared tree | Commit only your own paths (`git add <files>`). A broad add captures a peer's in-flight work and may push it early. |
 | Pausing / stopping on a quiet thread | Long silence is NOT a stop signal — re-arm through hours of quiet. You stop only on `SESSION DONE` or the human. |
 | Writing the stop phrase in prose | Put `SESSION DONE` on its own line, nothing else — a mention inside a sentence used to false-trigger every watcher. |
+| Theorising on a scary result before the cheapest check | An alarming reading gets ONE cheap isolated re-check first, not a fan-out of theories. See below. |
+| Verifying on unstable ground | Don't test mid-deploy-propagation, and don't use a probe that dies before reaching the code. See below. |
+| Inflating a minor finding into an epic | A minor limitation is a one-line note, not a multi-defect issue with a spec. |
+
+## When a verification looks alarming — cheapest check FIRST
+
+A scary result ("the whole feature is broken") invites elaborate root-cause **theories** — and in a multi-agent session, agents amplifying each other's theories. Two confident wrong reads in a row is the tell.
+
+**Before anyone theorises, do the ONE cheapest check that could disprove the alarm:**
+
+- **One clean call beats a big run.** A single hand-issued request (right inputs, one at a time) tells you more than an automated baseline.
+- **Verify on solid ground.** A deploy isn't live when the pipeline says "succeeded" — wait for evidence it propagated. Testing mid-propagation produces phantom failures.
+- **Check what layer answered.** Two `403`s from different layers look identical by status; the body (or a log line) shows which one — and whether your code even ran. A probe that errors before reaching your code proves nothing about it.
+
+**Coordinator:** demand that one discriminating check before greenlighting a wide investigation or a scope change. Chasing a ghost costs real pipeline cycles — and real side effects (e.g. a live broadcast).
 
 ## Notes
 
