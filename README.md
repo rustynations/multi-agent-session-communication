@@ -71,7 +71,11 @@ comments were the only channel.
 
 ![Three terminals, three roles — Architect, Backend, Frontend. Separate live agents on the same issue, not subagents of one session.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/1-three-agents.png)
 
+*Three terminals, three roles — separate live agents on one issue, not subagents.*
+
 ![The Architect posts the plan on the issue — the team, the folders, a frozen API contract. Every agent and the HITL read the same source of truth.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/2-plan-on-the-issue.png)
+
+*The Architect posts the plan on the issue: the team, the folders, and a frozen API contract.*
 
 ### What the run showed
 
@@ -87,7 +91,11 @@ thread, not in one orchestrator's context, is what made that possible.
 
 ![The Backend flags the crossed message on the thread, with timestamps.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/3-catch-on-the-thread.png)
 
+*The idle Backend flags the crossed message — with timestamps — on the thread.*
+
 ![The same moment from the Backend's own terminal — an idle agent reading the thread catches a race and warns before a bad commit.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/4-catch-in-the-terminal.png)
+
+*The same catch from the Backend's own terminal.*
 
 **Nobody claimed what they hadn't measured.** The Backend proved the endpoint with `curl`
 and said plainly which path was code-only. The Frontend drove a real browser for a
@@ -101,7 +109,11 @@ another's commit.
 
 ![The shipped app, light theme — valid ZIP returns temperature, conditions, and city. The API key stays on the server.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/5-result-light.png)
 
+*The shipped app, light theme.*
+
 ![Dark theme with a manual toggle — a scope change the HITL added mid-session, delivered and reviewed in both modes.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/6-result-dark.png)
+
+*Dark theme with the manual toggle — the scope the HITL added mid-session.*
 
 ## Requirements / notes
 
