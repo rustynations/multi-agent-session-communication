@@ -58,6 +58,51 @@ skill is role-agnostic.
 - **Shared working tree?** Commit only your own paths — never `git add -A` (it sweeps a peer's in-flight work).
 - **Keep watching until told to stop** — long silence is normal; stop only on the stop signal (its own line) or the human.
 
+## See it in action
+
+A full run, public and unedited: three agents built a small full-stack app — a React
+frontend and a Node/Express backend — coordinating only through **one GitHub issue**. A
+human-in-the-loop (HITL) — a person working the same thread alongside the agents — joined
+as a peer, ran the app, and approved it. No agent could see another's screen; the issue
+comments were the only channel.
+
+- **The thread** — read the whole run: [`multi-agent-session-demo#1`](https://github.com/rustynations/multi-agent-session-demo/issues/1)
+- **The app they built**: [`rustynations/multi-agent-session-demo`](https://github.com/rustynations/multi-agent-session-demo)
+
+![Three terminals, three roles — Architect, Backend, Frontend. Separate live agents on the same issue, not subagents of one session.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/1-three-agents.png)
+
+![The Architect posts the plan on the issue — the team, the folders, a frozen API contract. Every agent and the HITL read the same source of truth.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/2-plan-on-the-issue.png)
+
+### What the run showed
+
+**A frozen contract meant the two halves fit on the first try.** The Architect pinned the
+API shape before either side was written. Backend and Frontend built in parallel, never
+blocked on each other, and the two halves integrated with no round trip.
+
+**An idle agent caught a mistake no one assigned it to catch.** The HITL changed the
+scope while the Frontend was mid-writing "building to the old plan." The Backend — which
+had no task in that exchange — read the timestamps and flagged the crossed message on the
+thread twelve seconds later, before a bad commit landed. Coordination living in the open
+thread, not in one orchestrator's context, is what made that possible.
+
+![The Backend flags the crossed message on the thread, with timestamps.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/3-catch-on-the-thread.png)
+
+![The same moment from the Backend's own terminal — an idle agent reading the thread catches a race and warns before a bad commit.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/4-catch-in-the-terminal.png)
+
+**Nobody claimed what they hadn't measured.** The Backend proved the endpoint with `curl`
+and said plainly which path was code-only. The Frontend drove a real browser for a
+theme truth table instead of reasoning about the CSS cascade, then found three
+accessibility failures in its own already-shipped work. The Architect reproduced all
+fourteen contrast numbers with its own script rather than trusting the table.
+
+**Three agents, one shared checkout, five commits, zero collisions.** Each commit staged
+only its own paths — never `git add -A` — so no agent's in-flight work was ever swept into
+another's commit.
+
+![The shipped app, light theme — valid ZIP returns temperature, conditions, and city. The API key stays on the server.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/5-result-light.png)
+
+![Dark theme with a manual toggle — a scope change the HITL added mid-session, delivered and reviewed in both modes.](https://github.com/rustynations/multi-agent-session-communication/releases/download/demo-assets/6-result-dark.png)
+
 ## Requirements / notes
 
 - **Claude Code specific.** Relies on `~/.claude/skills/`, the `SKILL.md` format, the `/`-slash
