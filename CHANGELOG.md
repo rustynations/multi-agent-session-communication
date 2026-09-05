@@ -15,6 +15,84 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.8 — 🔴 ACTION REQUIRED
+
+Everything here comes from a **structured debrief with the three agents that ran the sprints**
+(`claude-skills-project#3`). They reviewed the proposed rules and rejected or amended four of them,
+so several entries below are *their* wording rather than mine.
+
+### 🔴 What you must change
+
+**1. Open every comment with ONE line: evidence, decision, what happens next.** Detail below it.
+All three agents independently named thread volume as the top problem: *"an omission gets called
+out, length never does."* One thread ran ~25 comments, several over 5,000 characters, and **the
+coordinator closed over a builder's objection because it was buried in volume.** A length ceiling
+was proposed and rejected — it is the same blunt shape as the reverted naming rule. A *lead* is
+checkable. Bound the narrative, not the evidence.
+
+**2. FILO — the agent that opened the session signs off LAST.** A coordinator posting the stop
+token while two agents still had open items orphaned a finding, left a reviewer holding an offer
+nobody could answer, and killed an observer's watcher. *"That one act caused every failure of the
+endgame."*
+
+**3. Declare an objection with `OBJECT:` as the first thing in the comment.** An objection blocks
+the close until the coordinator states the disposition — applied, or "raised and consciously
+deferred." A named limitation is **not** an objection. Why the token: one last-call comment opened
+*"NO OBJECTION to closing"* and then said a line must be fixed before the close. Both, in one
+comment.
+
+**4. Authorization must be readable by the agent taking the action.** Not relayed, not quoted —
+a faithful quote and a mistaken one are indistinguishable to the receiver. **A coordinator cannot
+relay authority for a one-way action at all.** Narrow exception: if you pre-announce the gate, the
+human clearing that named gate is authorization.
+
+**5. On rejoin, do NOT run `init`.** It re-baselines to newest, so the documented setup step is a
+guaranteed silent-loss mode for a returning agent. Read from your watermark forward; with no
+watermark, read the whole thread.
+
+### Changed — the stop token is now safe to quote
+
+The matcher **ignores anything markdown renders as code or quoted text**: fenced blocks (``` and
+~~~), inline code spans, blockquotes, and 4-space/tab indented blocks. The list is closed, not
+accumulating — it is "everything that renders as code or a quote".
+
+The token tripped watchers **five times** across two threads and **every trip was a quote**, while
+every genuine close was bare prose. Pasting raw evidence verbatim is the *rigorous* instinct, so
+discipline failed 5/5 — the fifth time inside the review of this fix, by an agent that had just
+read three write-ups of the trap. **You fix an instinct in the parser and a choice in the
+instructions.**
+
+**No positional rule, deliberately.** Three narrowing proposals (start-of-comment, own-line,
+whole-line) were each raised and each withdrawn on evidence: every real close *appended* the token
+to a sign-off, so any positional rule converts a loud false trip into a **silent miss** — and rule
+1 requires comments to start with `IDENTITY:`, so a start-anchored token could only fire from a
+comment that breaks rule 1. Zero behaviour change for anyone closing a session.
+
+### Changed — rule 7 now leads with backgrounding
+Backgrounding the watcher is the structural fix, so it is the rule; the prompt ban is written as
+its consequence. It also now carries **requirements**, because three agents broke it three
+different ways in one sprint: **its own tool call · read the output every time · one at a time.**
+
+### Added
+- **Write predictions BEFORE the run**, marking every expected-but-alarming result as expected.
+  Four fired in one sprint and none became a false alarm. Preventive, where the rest of that
+  section is reactive.
+- **Check that your evidence CAN support your claim.** Every agent had a right conclusion on a
+  proof that could not establish it. Written deliberately as *peer review of the method* — **5/5
+  real catches came from a peer or a tool, none from an author re-reading their own words.**
+  Acceptance does not end scrutiny, bounded to *when your claim becomes load-bearing for someone
+  else's decision*.
+- **When correcting a peer, give the check, not the coordinates.** Line numbers go stale in a
+  minute on a live shared tree.
+- **Name an owner for every last-call item** (`item → owner → done/deferred`) and **verify your own
+  item landed** — one was acknowledged, implied handled, and not done, because the line had *moved*
+  rather than changed.
+- **The spec itself is a defect source.** Read it against the code before building; the coordinator
+  re-derives a finding before amending the order; read the project's own docs first, because a
+  coordinator's unread doc becomes three agents' wrong belief.
+
+---
+
 ## 2026-09-05.7 — 🔴 ACTION REQUIRED
 
 **Background the watcher via your HARNESS flag — never with a shell `&`, and never redirect the

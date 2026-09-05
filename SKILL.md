@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.7 -->
+<!-- Version: 2026-09-05.8 -->
 
 # Multi-Agent Session
 
@@ -70,6 +70,16 @@ only if the agents post under a separate account.)
    - **To talk ABOUT the stop word:** write it **without** brackets — `SESSION DONE` inside a
      sentence does not trigger. Writing the bracketed form in prose **will** stop everyone,
      the same way a stray `@handle` pings a stranger.
+   - **Quoting it is now safe.** The matcher ignores anything markdown renders as code or quoted
+     text — fences, inline code, blockquotes, indented blocks. The token tripped watchers **five
+     times** across two sprints and *every* trip was a quote, while every real close was bare
+     prose. Pasting raw evidence verbatim is the rigorous instinct, so this is fixed in the parser,
+     not by asking you to be careful. **Typing it bare in prose is still a live wire** — that is a
+     choice, not an instinct, so it stays your job.
+   - **There is no positional rule, on purpose.** Every genuine close appended the token to a
+     sign-off. "Own line" or "start of comment" would turn a loud false trip into a **silent
+     miss** — and rule 1 requires comments to start with `IDENTITY:`, so a start-anchored token
+     could only fire from a comment that breaks rule 1.
    - **The old form no longer works.** A bare `SESSION DONE` on its own line used to trigger a
      stop. It does not any more — but `watch` **shouts** when it sees one, because a live session
      holds the old skill text in its context even after the repo updates, so an agent can emit the
@@ -80,30 +90,32 @@ only if the agents post under a separate account.)
    machine never sees them. If you cannot get a response from an agent you need, post
    the blocker on the thread addressed to `@$HUMAN` **and** ask your human in your own
    window. Do not route around the bus.
-7. **Never block on a prompt once you are watching.** Do **not** use `AskUserQuestion`, and do
-   not run anything else that stops and waits for a person, at **any** point after your first
-   `watch`. A blocking prompt freezes your session, so **you are not polling** — and the thread
-   still says you are watching. You go deaf and you look fine.
+7. **Run the watcher in the BACKGROUND, via your harness's background flag.** This is the
+   structural fix that makes the rest of the loop safe, so it is a rule rather than a tip.
+   Requirements, all three learned the hard way — three agents found three different ways to
+   break this in one sprint (2026-09-05):
+   - **Its own tool call.** Never folded into a compound command.
+   - **Read the output every time.** The output IS the mail. A shell `&` or a `>/dev/null`
+     detaches the poller: it still collects your mail and still advances your watermark, then
+     bins it. No error, nothing wrong on the thread, and you look busy.
+   - **One at a time.** Never arm a second watcher against the same watermark file.
 
-   **The one exception is before you ever start:** the FIRST agent's alignment with the human
-   (see Start-up) is a conversation, and nobody expects you on the bus yet. From your first
-   `watch` onward there is no exception — including while "idle", because idle means listening.
+   **Consequence — do not block on a prompt while watching.** `AskUserQuestion` (or anything that
+   waits for a person) freezes a FOREGROUND session, so you stop polling while the thread still
+   says you are watching. An agent did this, posted *"Parked, watching"*, and sat frozen while the
+   coordinator's answer landed 55 seconds later. Backgrounding removes the hazard; the ban is the
+   seatbelt for when you have not. The one exception is the FIRST agent's alignment with the human
+   before its first `watch` — nobody expects you on the bus yet.
 
-   This happened in a real sprint (2026-09-05): an agent hit a permission refusal, asked the
-   human a modal question, posted *"Parked, watching"*, and sat frozen. The coordinator answered
-   **55 seconds later** and the agent could not receive it. No peer could detect the problem —
-   the thread looked healthy. Only the human staring at that terminal could see it, and had to
-   dismiss the prompt by hand.
+   **Self-check, because a rule you just read will not stop you but a number will:**
+   ```
+   cat "$WM"          # what has been consumed
+   ```
+   A watermark **ahead** of the newest comment you have actually read proves something was
+   delivered and discarded. Recover with `peek`, then say on the thread that you lost mail.
 
-   **Need the human? Post the ask on the thread and go straight back to `watch`.** Then you are
-   listening when the answer lands — and the answer often comes from a **peer**, not the human.
-   Before you ask at all, `peek`: it may already be answered.
-
-   **Better: run the watcher in the BACKGROUND** (see Step 4). Then you are reachable and
-   listening at the same time, and this rule becomes a seatbelt rather than your only defence.
-
-Rules 6 and 7 are the same mistake wearing two hats. `SendMessage` leaves **no record**; a
-blocking prompt leaves you **deaf**. Both route around the bus, and the bus is the only thing
+Rules 6 and 7 guard the same thing from two sides. `SendMessage` leaves **no record**; a detached
+or blocked watcher leaves you **deaf**. Both route around the bus, and the bus is the only thing
 every agent can hear.
 
 Ignore your own comments. Frank never acts on Frank.
@@ -134,6 +146,18 @@ was not there.** Both were found by someone noticing an absence, not by an error
 A **relayed** approval is fine for a preference. It is **not** authority for an action you
 cannot walk back — a push to prod, a force-push, a delete, anything outward-facing.
 
+**Authorization must be READABLE BY THE AGENT TAKING THE ACTION** — not relayed, not quoted.
+A faithful quote and a mistaken one are indistinguishable to the receiver, so *"in their own words,
+in my session"* is still a relay to everyone else. Two agents derived this separately, mid-sprint,
+on the least reversible action in the session, and both were right.
+
+**So a coordinator cannot relay authority for a one-way action at all.** Its job is to get the
+human to post it **where the actor can read it** — on the thread, addressed to the actor.
+
+**One narrow exception, and it must be pre-announced:** if you state the gate in advance —
+*"tell me when X finishes and I will do Y"* — then the human clearing that named gate IS
+authorization. If you did not pre-announce it, a status report is not an instruction.
+
 For those, require the decision **firsthand from whoever owns it**, and say so plainly:
 *"I have the relay; I am holding for your own words because this touches prod."* Holding a
 one-way action once too often is much cheaper than releasing it once too early. When an agent
@@ -162,6 +186,17 @@ working — do NOT wait for a reply — when any of these happen:
 - You are about to go **heads-down** for a while — say what you are doing and roughly when
   you will resurface. While working you cannot hear the channel, so a labeled pause beats
   ambiguous silence.
+
+**Open every comment with ONE line: evidence, decision, what happens next.** Detail goes below it.
+This is not a length limit — a ceiling gets abandoned the first time something genuinely needs
+explaining. It is a *lead*, and it is checkable.
+
+Why it is a rule: a debrief of two sprints found the same top problem from all three agents.
+*"An omission gets called out, length never does."* One thread ran to ~25 comments, several over
+5,000 characters, and **the coordinator closed over a builder's objection specifically because it
+was buried in volume** — every endgame failure was downstream of a thread nobody could scan.
+**Bound the narrative, not the evidence:** a file-and-line trace earns its length; the paragraphs
+around it do not.
 
 These are boundaries, not chatter — that is the "record, not noise" line. Do not narrate
 every step; do mark every turn. A current thread also keeps watchers awake: they wake on
@@ -302,18 +337,63 @@ Neither could be absorbed. So, before you close:
 
 1. **Post a last call** — `[all] closing in ~60s unless someone objects` — then `watch` through it.
    One cheap round trip lets in-flight work land.
-2. **`peek` immediately before the close comment.** Not five minutes before. The gap between
-   reading and posting is itself a race.
-3. **Answer or explicitly defer every open item.** "Raised and consciously deferred" is a fine
-   close. Silence is not — it reads as overlooked, and a later reader cannot tell which it was.
-4. **Verify the close actually closed it.** `gh issue close` **exits 0 on an already-closed
+2. **An objection BLOCKS the close until you state its disposition.** Precedence, not timing —
+   `peek` "immediately before" cannot work when the close comment takes minutes to write, and a
+   coordinator missed a 44-second-old objection while doing exactly that.
+   - **An objection must be declared: `OBJECT:` as the first thing in the comment.** The closer
+     matches a token, not prose. This is why: one last-call comment opened *"NO OBJECTION to
+     closing"* and then said a line must be fixed **before** the close. Both, in one comment.
+   - **A named limitation is not an objection.** Otherwise every honest caveat blocks forever.
+   - **Answered = you state the disposition: applied, or "raised and consciously deferred."**
+     The objector confirming is better, never required — one idle agent must not stall a close.
+3. **Name an OWNER for every open item.** `item → owner → done/deferred`. Two agents each
+   declining to touch a shared file, to avoid racing a peer, is indistinguishable from nobody
+   noticing it — and that produced the only defect that outlived a sprint.
+4. **Read the thread AFTER the close comment is written, not before.** The writing is where the
+   race lives.
+5. **FILO — the agent that opened the session signs off LAST.** Not courtesy; the close depends on
+   it. A coordinator posting the stop token while two agents still had open items orphaned a
+   finding, left a reviewer holding an offer nobody could answer, and killed an observer's watcher
+   before it could sign off. *"That one act caused every failure of the endgame."*
+6. **Verify the close actually closed it.** `gh issue close` **exits 0 on an already-closed
    issue**, so a coordinator can report "closing now" when someone closed it earlier and nothing
-   happened. Check the state, and check *when* it closed:
+   happened. Check the state, and check *when*:
    ```
    gh issue view "$ISSUE" --repo "$REPO" --json state,closedAt
    ```
    A `closedAt` earlier than your own close means somebody beat you to it — quite possibly before
    the work finished.
+7. **Verify YOUR OWN item landed.** The closer drains the thread; nobody else is told to confirm
+   their item was applied. One raised item was acknowledged, implied handled, and not done — the
+   line had **moved**, not changed, because a section was inserted above it. **A line moving down
+   a file looks exactly like a file that changed.** One command.
+
+## Rejoining after you have stopped
+
+**On rejoin, do NOT run `init`.** `init` re-baselines to the newest comment, so the documented
+setup step is a **guaranteed silent-loss mode for a returning agent** — the one path where unread
+mail certainly exists. It happened: a rejoining agent's `init` skipped two peers' answers, and it
+only had them because it read the thread by hand out of habit.
+
+- Watermark still exists? **Read from it forward**, then watch.
+- No watermark? **Read the whole thread**, then watch.
+
+## The spec itself is a defect source
+
+The most serious findings of two sprints were **defects in the work order**, not in the code:
+a work item naming the wrong lambda (which would have blanked the very column the issue was
+about), and an out-of-scope list that silently broke account erasure. Three of seven items in one
+order were wrong.
+
+- **Read the spec against the code BEFORE you build, and report every mismatch.** Both builders
+  did this unprompted and it is where everything real came from. Findings are cheapest before a
+  line is staged.
+- **The coordinator re-derives a finding before amending the work order.** Every time a coordinator
+  checked a peer's report, the defect it found was its own — because checking the report is what
+  made it read the code it had wrongly excluded.
+- **Read the project's own docs first.** A coordinator's unread doc becomes three agents' wrong
+  belief. One session spent two separate hours re-deriving what was written in the project's memory
+  file. In a solo session that costs you; here it propagates.
 
 ## If you write the spec: numbering is not ordering
 
@@ -536,6 +616,16 @@ Then go back to Step 4. That loop IS the session.
 | Re-sending only the trigger after lost mail | Re-post the **full** message. A bare "go" strips every decision and bound that rode with the original, and nobody can tell what is missing. |
 | Acting on the first message in a batch | One `watch` can return several messages. Read them all — a later one may change an earlier one. |
 | Assuming a silent agent is busy | Silence can mean lost mail. `peek` the thread and compare it against that agent's watermark before you wait any longer. |
+| No lead line on a comment | Open with one line: evidence, decision, what happens next. A thread nobody can scan is how a close ran over an objection. |
+| Coordinator signing off first | FILO. The opener signs off last, or it strands decisions and orphans open items. |
+| Treating a caveat as an objection, or missing a real one | An objection says `OBJECT:` first. A named limitation is not one. Answered = you state applied or consciously deferred. |
+| Leaving a last-call item unowned | `item → owner → done/deferred`. Two agents each avoiding a shared file looks exactly like nobody noticing. |
+| Running `init` on rejoin | It re-baselines to newest and swallows the mail you came back for. Read from your watermark forward instead. |
+| Relaying authority for a one-way action | It is not readable by the actor. Get the human to post it on the thread, addressed to the actor. |
+| Re-reading your own claim and calling it verified | 5/5 real catches came from a peer or a tool, never from an author re-reading. Get the method checked. |
+| Citing line numbers to a peer on a live tree | They go stale in a minute. Quote the text and give the check, not the coordinates. |
+| Verifying only after the run | Write the predictions first and mark which correct results will look alarming. |
+| Building the spec as written | Read it against the code first and report mismatches. Three of seven work items in one order were wrong. |
 | Polling in the foreground | Background the watcher via the harness flag. A foreground poll makes you unreachable for ~9 min, and any prompt then makes you deaf. |
 | **Backgrounding with `&` or redirecting the output** | The poller consumes your mail, advances the watermark and bins it — silently. Use the harness's background flag; the output IS the mail. |
 | Not checking your own watermark | `cat "$WM"`. A watermark AHEAD of the newest comment you actually read proves mail was consumed and discarded. |
@@ -565,7 +655,23 @@ A scary result ("the whole feature is broken") invites elaborate root-cause **th
 
 **Coordinator:** demand that one discriminating check before greenlighting a wide investigation or a scope change. Chasing a ghost costs real pipeline cycles — and real side effects (e.g. a live broadcast).
 
-### Better still: make the alarm impossible before you run the real check
+### Best of all: write the predictions down BEFORE the run
+
+**Before a deploy, write what each check will return, and mark every expected-but-alarming result
+as expected.** A prediction made before the run outranks any explanation after it.
+
+Everything else in this section is **reactive** — it helps once something already looks wrong.
+This is **preventive**: it makes the alarm unable to fire. In one sprint four correct-but-alarming
+results were named in advance and not one became a false alarm. The sharpest: a verification step
+said *"the column must show a real value, not `—`"*, but against pre-existing rows a blank column
+was **guaranteed and correct**. Reported literally it reads as a broken fix and very likely
+triggers a rollback; predicted in advance it is a pass.
+
+A second payoff, observed: the *act* of committing to falsifiable predictions is itself a
+discriminating check. One contradiction surfaced while the predictions were being written, not
+during any review.
+
+### Also: make the alarm impossible before you run the real check
 
 Everything above is reactive. These three are cheap and stop the phantom happening at all — all
 three earned their place in one sprint (2026-09-05).
@@ -583,6 +689,29 @@ three earned their place in one sprint (2026-09-05).
   yet read the working tree while the builder was still writing, and found a late requirement the
   code did not meet — fixed before it was ever committed. An idle agent is not idle. Findings are
   cheapest while nothing is staged.
+
+### Check that your evidence CAN support your claim
+
+**Raw output is not the same as sufficient output.** Across two sprints every agent had at least
+one *correct conclusion resting on a proof that could not establish it* — a grep blind to three of
+four consumers, a token claim contradicted by the code its author had read, a pen-test that never
+sends the query string it was cited for. **Being right by luck is the dangerous kind, because
+nothing forces a re-check.**
+
+**What actually catches these: a peer who checks the METHOD, not the conclusion — plus an author
+who verifies instead of defending.** Five out of five real catches were found by a peer or by a
+tool. **None** was found by an author re-reading their own words. So do not write this rule down
+as "re-read your claims"; it will underperform. The mechanism is peer review of evidence, and an
+author who goes back voluntarily.
+
+**Acceptance does not end scrutiny — but bound it:** re-check an accepted claim **when it becomes
+load-bearing for someone else's decision.** One claim was harmless until a coordinator built a
+close plan on it. That trigger is narrow and catches the real case without re-litigating settled
+things every session.
+
+**When correcting a peer, give the check, not the coordinates.** Line numbers go stale within a
+minute on a live shared tree, and a true claim resting on a citation that no longer resolves gets
+refused — correctly. Quote the text and let the reader grep for it.
 
 And when you skip a check on purpose, **say so and say why.** A skipped check and a forgotten
 check look identical in the record. One agent declined to fire a confirming probe because the
