@@ -15,6 +15,29 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.5 — 🟡 recommended change
+
+**Pushing a branch you do not have checked out leaves your local ref stale.** Caught at the close
+of the founding sprint.
+
+The reviewer promoted with `git push origin <sha>:main` while standing on `staging`. That updates
+the remote and `origin/main` — but **not** the local `main` pointer. GitHub was correct the whole
+time and the working copy was not, so the next session would check out `main`, see the old commit,
+and conclude prod was behind.
+
+After any push you did not make from that branch:
+
+```
+git fetch origin
+git rev-parse main origin/main                 # must match
+git ls-remote origin main                      # and match GitHub
+git update-ref refs/heads/main origin/main     # only if it does not
+```
+
+Purely local. Nothing needs pushing — the remote was already right.
+
+---
+
 ## 2026-09-05.4 — 🟡 recommended change
 
 **Run the watcher in the background.** No code changed; this is the best structural finding of

@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.4 -->
+<!-- Version: 2026-09-05.5 -->
 
 # Multi-Agent Session
 
@@ -261,6 +261,20 @@ working tree — so be careful what you commit:
 - A pushed shared-branch commit is **hard to reverse.** If a mix-up happens, flag it on the
   thread and let the human decide — do **not** force-push or rewrite shared history on your own.
 
+- **Pushing a branch you do not have checked out leaves your LOCAL ref stale.** Promoting with
+  `git push origin <sha>:main` while standing on another branch updates the remote and
+  `origin/main` — but the local `main` pointer does **not** move. Everything is correct on GitHub
+  and wrong on disk, so the next session checks out `main`, sees the old commit, and concludes
+  prod is behind. (Caught at the close of the founding sprint, 2026-09-05.) After any push you
+  did not make from that branch, reconcile it:
+  ```
+  git fetch origin
+  git rev-parse main origin/main         # must match
+  git ls-remote origin main              # and match GitHub
+  git update-ref refs/heads/main origin/main   # if it does not
+  ```
+  Do it locally. Nothing needs pushing — the remote was already right.
+
 (Structural alternative: give each agent its own **git worktree**, so there is no shared tree to
 collide on.)
 
@@ -493,6 +507,7 @@ Then go back to Step 4. That loop IS the session.
 | Reaching a peer with `SendMessage` | The issue is the only channel. No answer from someone? Post the blocker on the thread AND ask your human. |
 | Guessing the human's `@` handle | Derive it: `HUMAN=$(gh api user -q .login)`. A guessed handle usually belongs to a different real person. |
 | Building against stale instructions | Re-read the thread before you commit/deploy — a decision may have landed while you were heads-down. |
+| Pushing a branch you are not standing on | Your local ref stays stale — GitHub is right, disk is wrong. `git fetch` then compare `main` / `origin/main` / `ls-remote`. |
 | `git add -A` on a shared tree | Commit only your own paths (`git add <files>`). A broad add captures a peer's in-flight work and may push it early. |
 | Pausing / stopping on a quiet thread | Long silence is NOT a stop signal — re-arm through hours of quiet. You stop only on `[SESSION DONE]` or the human. |
 | Writing the bracketed stop token in prose | `[SESSION DONE]` triggers **anywhere** in a comment. To discuss the stop word, write it **without** brackets. |
