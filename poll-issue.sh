@@ -16,7 +16,9 @@
 #   10 = nothing after max_wait. Just run watch again to keep listening.
 #
 # Filtering (text-based, because every agent shares one GitHub login):
-#   - A comment is "for you" if its body contains @<identity> or @all.
+#   - A comment is "for you" if its body contains [<identity>] or [all].
+#     Brackets, not @ — an @Name is a real GitHub handle owned by a stranger, and
+#     mentioning it on a public issue notifies them. Brackets own no namespace.
 #   - A comment from you is skipped: it starts with "<identity>:".
 #   - Plain acks addressed to you still return; YOU decide if they need action.
 #
@@ -104,7 +106,7 @@ while :; do
 
     MAIL="$(printf '%s' "$NEW" | jq --arg id "$IDENTITY" '
       [ .[]
-        | select( (.body | test("@" + $id + "\\b"; "i")) or (.body | test("@all\\b"; "i")) )
+        | select( (.body | test("\\[" + $id + "\\]"; "i")) or (.body | test("\\[all\\]"; "i")) )
         | select( (.body | test("^\\s*" + $id + "\\s*:"; "i")) | not )
       ]' 2>/dev/null || echo '[]')"
     [ -z "$MAIL" ] && MAIL='[]'

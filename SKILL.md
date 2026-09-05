@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-04.2 -->
+<!-- Version: 2026-09-04.3 -->
 
 # Multi-Agent Session
 
@@ -41,7 +41,11 @@ only if the agents post under a separate account.)
 ## The six golden rules
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
-2. **Address** every comment — name who it is for: `@DocWriter` or `@all`.
+2. **Address** every comment — name who it is for in **square brackets**: `[DocWriter]`
+   or `[all]`. Brackets, never `@`. **`@` is reserved for real GitHub accounts.** An
+   `@Builder` or `@Reviewer` is a real handle owned by a stranger — on a public issue it
+   pings them, and there is no safe prefix to fall back on (`@agent-architect` is a real
+   person too). `[Builder]` belongs to no namespace, so it can never collide.
 3. **Watermark** — never re-read old comments. The poll script tracks this for you.
 4. **Act only if it is for you AND needs action.** A plain "ok / thanks" ends the chain. Reply to it and you start an echo loop. Silence is allowed.
 5. **Stop word** — if anyone posts `SESSION DONE` **on its own line**, stop the loop, sign off, wait for the human. When you post it, put it on its **own line, nothing else** — never inside a sentence. (A prose mention used to false-trigger every watcher; the poller now only matches a standalone line, but keep it clean.)
@@ -57,7 +61,7 @@ Ignore your own comments. Frank never acts on Frank.
 ## Keep the record current
 
 The issue is the shared source of truth. **If it isn't on the thread, no one — agent or
-human — can see it.** Post an update (signed, `@all` unless it is for someone), then keep
+human — can see it.** Post an update (signed, `[all]` unless it is for someone), then keep
 working — do NOT wait for a reply — when any of these happen:
 
 - You **start** a distinct piece of work, or **change your plan.**
@@ -135,7 +139,7 @@ Settle any product/scope decision with the human here — do not decide it solo 
 
 Your alignment is **already on the thread** — do **NOT** sync with the human. Read the issue +
 your assigned role, then announce and start watching. If you were told to hold for a
-**coordinator's** go (e.g. `@you go`), wait for **that**, not the human. The human is in the
+**coordinator's** go (e.g. `[you] go`), wait for **that**, not the human. The human is in the
 loop for the first agent only. (If your role genuinely isn't defined on the thread, ask the
 **coordinator** there — still not the human.)
 
@@ -161,7 +165,7 @@ POLL=~/.claude/skills/multi-agent-session/poll-issue.sh
 **Step 2 — announce you are here:**
 
 ```
-gh issue comment "$ISSUE" --repo "$REPO" --body "$ME: @all — online, watching #$ISSUE."
+gh issue comment "$ISSUE" --repo "$REPO" --body "$ME: [all] — online, watching #$ISSUE."
 ```
 
 **Step 3 — make your opening move, if you have one.** Re-read the issue. Do you hold the
@@ -186,7 +190,7 @@ Read the exit code:
 **Step 5 — reply (only if needed):**
 
 ```
-gh issue comment "$ISSUE" --repo "$REPO" --body "$ME: @Builder answer is X."
+gh issue comment "$ISSUE" --repo "$REPO" --body "$ME: [Builder] answer is X."
 ```
 
 Then go back to Step 4. That loop IS the session.
@@ -196,7 +200,8 @@ Then go back to Step 4. That loop IS the session.
 | Mistake | Fix |
 |---|---|
 | Replying to every "ok / thanks" | Only reply if action is needed. Kill the echo. |
-| Forgetting to sign or address | Every comment starts `Me:` and names `@who`. |
+| Forgetting to sign or address | Every comment starts `Me:` and names `[who]`. |
+| Addressing an agent with `@` | Use brackets — `[Reviewer]`, not `@Reviewer`. `@` is for real GitHub accounts; agent names collide with strangers' handles. |
 | Re-answering old comments | Run `init` once at start; trust the watermark. |
 | Polling with a tight loop in the LLM | Never. Use `watch` — it blocks in bash, not in tokens. |
 | Guessing your identity | Ask the user. |
@@ -232,4 +237,4 @@ A scary result ("the whole feature is broken") invites elaborate root-cause **th
 ## Notes
 
 - The watcher blocks up to ~9 min per call (under the 600s Bash timeout), then exits 10 so you re-run it. This is normal; **keep re-running — for hours if the task takes that long.** Idle time is never a reason to stop; only `SESSION DONE` or the human ends the watch.
-- All agents share one GitHub login, so mail is matched by TEXT (`@name` / `@all`), not by author. That is why signing and addressing are mandatory.
+- All agents share one GitHub login, so mail is matched by TEXT (`[name]` / `[all]`), not by author. That is why signing and addressing are mandatory.
