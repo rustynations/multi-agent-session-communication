@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-04.1 -->
+<!-- Version: 2026-09-04.2 -->
 
 # Multi-Agent Session
 
@@ -29,6 +29,15 @@ not guess an identity. Do not guess the issue.
 If the issue lives in a different repo (common for scaffold projects: issues live in
 `<project>-project`), confirm the repo with the user.
 
+**Your human's GitHub alias:** do **NOT** ask, and never hardcode it — derive it with
+`gh api user -q .login`. Address the human as `@$HUMAN` so the thread names a real
+account instead of a guess. Guessing is worse than it looks: a plausible handle like
+`@Rusty` usually belongs to **a different real person**, so the mention points at a
+stranger. (Caveat: when the agents post under the human's own account, GitHub sends no
+notification — you cannot notify yourself. The `@$HUMAN` is for the record, so a human
+scanning the thread can see which lines are theirs to answer. It becomes a real alert
+only if the agents post under a separate account.)
+
 ## The six golden rules
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
@@ -40,7 +49,8 @@ If the issue lives in a different repo (common for scaffold projects: issues liv
    terminals. Direct session-to-session messages leave **no record**: your human cannot
    read them, a restarted agent cannot recover them, and an agent that is not on this
    machine never sees them. If you cannot get a response from an agent you need, post
-   the blocker on the thread **and** ask your human. Do not route around the bus.
+   the blocker on the thread addressed to `@$HUMAN` **and** ask your human in your own
+   window. Do not route around the bus.
 
 Ignore your own comments. Frank never acts on Frank.
 
@@ -54,9 +64,9 @@ working — do NOT wait for a reply — when any of these happen:
 - You **finish** a unit of work — a commit, a deploy, a verification — with the **raw evidence**, not just "done."
 - You **make or change a decision.**
 - You hit a **blocker — including needing the human** (expired login, a decision, a manual
-  check), hand off, or **stand down.** Post it on the thread even if you also ask the human
-  in your own window: an out-of-band ask is invisible to the team, and the thread just looks
-  like you are working.
+  check), hand off, or **stand down.** Post it on the thread — addressed to `@$HUMAN` when
+  it is the human you need — even if you also ask them in your own window: an out-of-band
+  ask is invisible to the team, and the thread just looks like you are working.
 - You are about to go **heads-down** for a while — say what you are doing and roughly when
   you will resurface. While working you cannot hear the channel, so a labeled pause beats
   ambiguous silence.
@@ -137,6 +147,7 @@ Set variables once (use the project `tmp/` for the watermark file):
 ISSUE=42
 ME=Frank
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+HUMAN=$(gh api user -q .login)   # your human's real GitHub alias — derived, never asked
 WM=tmp/mas-watermark-${ME}-${ISSUE}.txt
 POLL=~/.claude/skills/multi-agent-session/poll-issue.sh
 ```
@@ -195,8 +206,9 @@ Then go back to Step 4. That loop IS the session.
 | Goal met but nobody closes | When your objective is done or agreed, post `SESSION DONE`. Do not treat agreement as a silent ack. |
 | Letting the record go stale | Post at each boundary (start / finish / decide / block). The thread is the source of truth. |
 | Going heads-down silently | Say what you are doing and when you will resurface. Silence reads as stalled. |
-| Asking the human out-of-band | Need the human? Post the blocker on the thread too — your own window is invisible to the team. |
+| Asking the human out-of-band | Need the human? Post the blocker on the thread too, addressed to `@$HUMAN` — your own window is invisible to the team. |
 | Reaching a peer with `SendMessage` | The issue is the only channel. No answer from someone? Post the blocker on the thread AND ask your human. |
+| Guessing the human's `@` handle | Derive it: `HUMAN=$(gh api user -q .login)`. A guessed handle usually belongs to a different real person. |
 | Building against stale instructions | Re-read the thread before you commit/deploy — a decision may have landed while you were heads-down. |
 | `git add -A` on a shared tree | Commit only your own paths (`git add <files>`). A broad add captures a peer's in-flight work and may push it early. |
 | Pausing / stopping on a quiet thread | Long silence is NOT a stop signal — re-arm through hours of quiet. You stop only on `SESSION DONE` or the human. |
