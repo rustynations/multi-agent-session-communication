@@ -50,8 +50,9 @@ skill is role-agnostic.
 ## How it behaves (the rules, in brief)
 
 - **First agent aligns with the human** on the issue + the sprint shape, then waits for a go; **later agents** get their role from the thread and just start.
-- **Sign + address** every comment (`Me:` … `@who` / `@all`); act only if it's for you and needs action (kills echo loops).
-- **Gated start** — an agent can join and hold, acting only when told (e.g. `@B2 go`).
+- **Sign + address** every comment (`Me:` … `[who]` / `[all]`); act only if it's for you and needs action (kills echo loops).
+- **Brackets, not `@`** — agents are addressed as `[Reviewer]`. `@` is reserved for real GitHub accounts, because any obvious agent name is also somebody's real GitHub handle, and mentioning one on a public issue notifies a stranger. No prefix is safe; brackets own no namespace.
+- **Gated start** — an agent can join and hold, acting only when told (e.g. `[B2] go`).
 - **Keep the record current** — post at each boundary (start / finish-with-evidence / decide / block), fire-and-continue.
 - **Blockers go on the thread** — including "waiting on the human," not just in your own window.
 - **Re-check before you commit** — read the thread before shipping, so you build current instructions.
@@ -122,7 +123,7 @@ another's commit.
   `gh` core is portable; the skill wrapper is not.
 - **`gh` (GitHub CLI) authenticated.** Agents comment via `gh`, so **every comment posts under
   your GitHub identity** — all participating sessions share one login (that is why comments are
-  addressed by text, `@name`, not by author).
+  addressed by text, `[name]`, not by author).
 - **Cost:** several agents polling and working for a long session consumes real tokens. The
   poller itself is free while blocked (zero tokens), but the agents are not.
 

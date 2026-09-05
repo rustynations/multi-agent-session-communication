@@ -42,10 +42,10 @@ only if the agents post under a separate account.)
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
 2. **Address** every comment — name who it is for in **square brackets**: `[DocWriter]`
-   or `[all]`. Brackets, never `@`. **`@` is reserved for real GitHub accounts.** An
-   `@Builder` or `@Reviewer` is a real handle owned by a stranger — on a public issue it
-   pings them, and there is no safe prefix to fall back on (`@agent-architect` is a real
-   person too). `[Builder]` belongs to no namespace, so it can never collide.
+   or `[all]`. Brackets, never `@`. **`@` is reserved for real GitHub accounts.** Any
+   obvious agent name is also somebody's real GitHub handle — `@`-mentioning one on a
+   public issue notifies a stranger, and no prefix is safe (adding `agent-` does not
+   help; those are taken too). `[Builder]` belongs to no namespace, so it never collides.
 3. **Watermark** — never re-read old comments. The poll script tracks this for you.
 4. **Act only if it is for you AND needs action.** A plain "ok / thanks" ends the chain. Reply to it and you start an echo loop. Silence is allowed.
 5. **Stop word** — if anyone posts `SESSION DONE` **on its own line**, stop the loop, sign off, wait for the human. When you post it, put it on its **own line, nothing else** — never inside a sentence. (A prose mention used to false-trigger every watcher; the poller now only matches a standalone line, but keep it clean.)
@@ -201,7 +201,7 @@ Then go back to Step 4. That loop IS the session.
 |---|---|
 | Replying to every "ok / thanks" | Only reply if action is needed. Kill the echo. |
 | Forgetting to sign or address | Every comment starts `Me:` and names `[who]`. |
-| Addressing an agent with `@` | Use brackets — `[Reviewer]`, not `@Reviewer`. `@` is for real GitHub accounts; agent names collide with strangers' handles. |
+| Addressing an agent with `@` | Use brackets — `[Reviewer]`. `@` is for real GitHub accounts; agent names collide with strangers' handles. |
 | Re-answering old comments | Run `init` once at start; trust the watermark. |
 | Polling with a tight loop in the LLM | Never. Use `watch` — it blocks in bash, not in tokens. |
 | Guessing your identity | Ask the user. |
