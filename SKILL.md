@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.1 -->
+<!-- Version: 2026-09-05.2 -->
 
 # Multi-Agent Session
 
@@ -38,7 +38,7 @@ notification — you cannot notify yourself. The `@$HUMAN` is for the record, so
 scanning the thread can see which lines are theirs to answer. It becomes a real alert
 only if the agents post under a separate account.)
 
-## The six golden rules
+## The seven golden rules
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
 2. **Address** every comment — name who it is for in **square brackets**: `[DocWriter]`
@@ -55,6 +55,23 @@ only if the agents post under a separate account.)
    machine never sees them. If you cannot get a response from an agent you need, post
    the blocker on the thread addressed to `@$HUMAN` **and** ask your human in your own
    window. Do not route around the bus.
+7. **Never block on a prompt.** Do **not** use `AskUserQuestion`, and do not run anything else
+   that stops and waits for a person. A blocking prompt freezes your session, so **you are not
+   polling** — and the thread still says you are watching. You go deaf and you look fine.
+
+   This happened in a real sprint (2026-09-05): an agent hit a permission refusal, asked the
+   human a modal question, posted *"Parked, watching"*, and sat frozen. The coordinator answered
+   **55 seconds later** and the agent could not receive it. No peer could detect the problem —
+   the thread looked healthy. Only the human staring at that terminal could see it, and had to
+   dismiss the prompt by hand.
+
+   **Need the human? Post the ask on the thread and go straight back to `watch`.** Then you are
+   listening when the answer lands — and the answer often comes from a **peer**, not the human.
+   Before you ask at all, `peek`: it may already be answered.
+
+Rules 6 and 7 are the same mistake wearing two hats. `SendMessage` leaves **no record**; a
+blocking prompt leaves you **deaf**. Both route around the bus, and the bus is the only thing
+every agent can hear.
 
 Ignore your own comments. Frank never acts on Frank.
 
@@ -68,9 +85,12 @@ working — do NOT wait for a reply — when any of these happen:
 - You **finish** a unit of work — a commit, a deploy, a verification — with the **raw evidence**, not just "done."
 - You **make or change a decision.**
 - You hit a **blocker — including needing the human** (expired login, a decision, a manual
-  check), hand off, or **stand down.** Post it on the thread — addressed to `@$HUMAN` when
-  it is the human you need — even if you also ask them in your own window: an out-of-band
-  ask is invisible to the team, and the thread just looks like you are working.
+  check, a permission refusal), hand off, or **stand down.** Post it on the thread — addressed
+  to `@$HUMAN` when it is the human you need — even if you also mention it in your own window:
+  an out-of-band ask is invisible to the team, and the thread just looks like you are working.
+  Then **go back to `watch` immediately.** Do not stop and wait on a prompt (rule 7), and do not
+  assume only the human can unblock you: state the blocker, offer the options you can see, and a
+  **peer** will often answer it before the human ever reads the thread.
 - You are about to go **heads-down** for a while — say what you are doing and roughly when
   you will resurface. While working you cannot hear the channel, so a labeled pause beats
   ambiguous silence.
@@ -325,6 +345,10 @@ Then go back to Step 4. That loop IS the session.
 | Acting on the first message in a batch | One `watch` can return several messages. Read them all — a later one may change an earlier one. |
 | Assuming a silent agent is busy | Silence can mean lost mail. `peek` the thread and compare it against that agent's watermark before you wait any longer. |
 | Auditing with `watch` | `watch` returns only mail addressed to you and **discards** everything else. An observer needs `audit`, which returns all traffic. |
+| **Asking with `AskUserQuestion`** | It freezes your session, so you stop polling while the thread still says you are watching. Post the ask on the thread and go back to `watch`. |
+| Posting "parked, watching" and then not watching | If you are not in `watch`, do not claim you are. A false status is worse than silence — it stops peers looking for the problem. |
+| Assuming only the human can unblock you | State the blocker with the options you can see. A peer often answers before the human reads the thread. |
+| Escalating without re-reading | `peek` first. The answer may already be on the thread — and a permission refusal may be blocking a step you do not actually need. |
 
 ## When a verification looks alarming — cheapest check FIRST
 

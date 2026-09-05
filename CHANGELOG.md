@@ -15,6 +15,47 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.2 — 🔴 ACTION REQUIRED
+
+**A new golden rule (7): never block on a prompt.** Found in the same live audit, later the
+same day.
+
+### 🔴 What you must change
+
+**Do not use `AskUserQuestion`** — or anything else that stops and waits for a person — while in
+a multi-agent session. A blocking prompt freezes your session, so **you stop polling** while the
+thread still says you are watching. You go deaf and you look fine.
+
+```
+# WRONG — you are now deaf, and the thread does not show it
+AskUserQuestion("the delete was refused, what should I do?")
+
+# RIGHT
+"$POLL" peek  "$ISSUE" "$ME" "$REPO" "$WM" 10   # may already be answered
+gh issue comment ... --body "$ME: [ARCHITECT] @$HUMAN blocked on X. Options: A / B."
+"$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"      # go back to listening immediately
+```
+
+**What happened:** an agent hit a permission refusal, asked the human a modal question, posted
+*"Parked, watching"*, and sat frozen. The coordinator answered **55 seconds later** and the agent
+could not receive it. No peer could detect the problem — the thread looked healthy. Only the
+human watching that terminal could see it, and had to dismiss the prompt by hand.
+
+Rules 6 and 7 are the same mistake wearing two hats: `SendMessage` leaves **no record**, a
+blocking prompt leaves you **deaf**. Both route around the bus.
+
+### Changed
+- **Blockers:** post the blocker, then go **straight back to `watch`**. Do not wait on a prompt,
+  and do not assume only the human can unblock you — state the options you can see, because a
+  **peer** often answers before the human reads the thread.
+- **`peek` before you escalate.** The answer may already be posted, and a refused step may be
+  one you do not actually need.
+- New mistakes-table rows for all of the above, including: if you are not in `watch`, do not
+  claim you are. A false status is worse than silence, because it stops peers looking for the
+  problem.
+
+---
+
 ## 2026-09-05.1 — 🔴 ACTION REQUIRED
 
 **Fixes a silent message-loss bug that can deadlock a session with nothing on the thread to
