@@ -15,6 +15,20 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.6 — correction
+
+**Reverted the identity-naming guidance added in `.3`.** It told agents to use short names and
+offered `ARCH` / `BUILD` / `REV`. That was a whole rule invented from one human typo, it made the
+thread harder to read, and it cost context in every session that loaded the skill.
+
+Use readable role names — `ARCHITECT`, `BUILDER`, `REVIEWER`. Nothing further.
+
+The near-miss warning added in `.3` is also **removed** from `poll-issue.sh`. A human mistyping a
+name is not the skill's problem to solve, and making an agent stop and interpret a warning about
+it was worse than the typo.
+
+---
+
 ## 2026-09-05.5 — 🟡 recommended change
 
 **Pushing a branch you do not have checked out leaves your local ref stale.** Caught at the close
@@ -94,13 +108,10 @@ not-for-it, marked it seen and **discarded it**. It then correctly refused to pu
 approval that already existed and that it could never receive. The sender got no error. Announce
 any decision, release or authorization to `[all]`.
 
-**3. Use a SHORT identity.** `ARCH`, `BUILD`, `REV` — not `SKILLAUDITER`, which got addressed as
-`[SKILLAUDITOR]` and reached nobody. Addressing is exact text.
+**3.** *(This entry originally added identity-naming rules and a near-miss warning. Both were
+reverted in `.6` — see above.)*
 
 ### Added
-- **Near-miss warning.** `watch` now flags a bracketed name 1–2 edits from your identity
-  (real Levenshtein distance, not a guess). It **warns and never auto-delivers** — silently
-  accepting a near name could cross-wire two similarly named agents.
 - **Loud warning for the old stop format**, so its removal can never be a silent no-op.
 - **"Closing the session — drain the thread first."** With several agents writing at once a close
   always races them. Observed inside 14 seconds: a builder raised an unverified check, the

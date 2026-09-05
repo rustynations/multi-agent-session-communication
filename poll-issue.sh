@@ -109,53 +109,6 @@ newest_ts() {
   jq -r '.comments | if length == 0 then "" else (max_by(.createdAt) | .createdAt) end' "$JSON_TMP" 2>/dev/null || echo ""
 }
 
-# Warn on a NEAR MISS: a bracketed name 1-2 edits from your identity but not equal.
-# Addressing is exact text, so one typo drops the message and the sender gets no
-# feedback at all. This bit for real: a human wrote [SKILLAUDITOR] at an agent named
-# SKILLAUDITER and the message matched nobody (2026-09-05). We WARN and never
-# auto-deliver — silently accepting a near name could cross-wire two similar agents.
-near_miss_warn() {
-  local batch="$1"
-  printf '%s' "$batch" \
-    | jq -r '.[] | .body' 2>/dev/null \
-    | grep -oE '\[[A-Za-z][A-Za-z0-9_-]*\]' \
-    | tr -d '[]' | sort -u \
-    | awk -v me="$IDENTITY" '
-      function lev(a, b,   i, j, la, lb, prev, cur, cost, m) {
-        la = length(a); lb = length(b)
-        if (la == 0) return lb
-        if (lb == 0) return la
-        for (j = 0; j <= lb; j++) prev[j] = j
-        for (i = 1; i <= la; i++) {
-          cur[0] = i
-          for (j = 1; j <= lb; j++) {
-            cost = (substr(a, i, 1) == substr(b, j, 1)) ? 0 : 1
-            m = prev[j] + 1
-            if (cur[j-1] + 1 < m) m = cur[j-1] + 1
-            if (prev[j-1] + cost < m) m = prev[j-1] + cost
-            cur[j] = m
-          }
-          for (j = 0; j <= lb; j++) prev[j] = cur[j]
-        }
-        return prev[lb]
-      }
-      BEGIN { lme = tolower(me); n = 0 }
-      {
-        t = tolower($0)
-        if (t == lme || t == "all") next
-        d = lev(t, lme)
-        if (d >= 1 && d <= 2) { hits[++n] = $0 " (" d " char" (d == 1 ? "" : "s") " off)" }
-      }
-      END {
-        if (n == 0) exit 0
-        print "!! NEAR-MISS ADDRESSING — someone may have meant YOU (" me ") but mistyped it:"
-        for (i = 1; i <= n; i++) print "!!   [" hits[i] "]"
-        print "!! Addressing is EXACT, so those messages were delivered to nobody and the"
-        print "!! sender got no feedback. Read them by hand, and if one was for you, reply"
-        print "!! naming your exact identity so the thread self-corrects."
-      }'
-}
-
 comment_count() {
   jq -r '.comments | length' "$JSON_TMP" 2>/dev/null || echo 0
 }
@@ -164,7 +117,6 @@ write_edit_sidecar() {
   jq -r '.comments[]? | "\(.id):\(.includesCreatedEdit)"' "$JSON_TMP" 2>/dev/null | sort > "$EDIT_FILE"
 }
 
-# --- init --------------------------------------------------------------------
 if [ "$MODE" = "init" ]; then
   fetch_comments_json
   NEWEST="$(newest_ts)"
@@ -362,14 +314,10 @@ while :; do
     MAILCOUNT="$(printf '%s' "$MAIL" | jq 'length' 2>/dev/null || echo 0)"
     [ -z "$MAILCOUNT" ] && MAILCOUNT=0
 
-    NM="$(near_miss_warn "$NEW" 2>/dev/null || echo "")"
 
     if [ "$STOP" -gt 0 ]; then
       echo "=== SESSION DONE received ==="
       printf '%s' "$NEW" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
-      # A stop wins over everything, but a mistyped name in the same batch is still
-      # worth knowing — it may be the last thing anyone tried to tell you.
-      [ -n "$NM" ] && { echo; printf '%s\n' "$NM"; }
       [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
       exit 42
     fi
@@ -401,21 +349,8 @@ while :; do
       echo "=== New mail for $IDENTITY ($MAILCOUNT) ==="
       [ -n "$EDITED_OUT" ] && printf '%s\n' "$EDITED_OUT"
       printf '%s' "$MAIL" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
-      [ -n "$NM" ] && { echo; printf '%s\n' "$NM"; }
       echo "--- read ALL of the above before you act: a single batch can hold"
       echo "--- several messages, and the later one may change the earlier one."
-      [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
-      exit 0
-    fi
-
-    # No mail for us — but if someone MISTYPED our name, that message reached nobody.
-    # Surface it now rather than warning into a void nine minutes from now.
-    if [ -n "$NM" ]; then
-      echo "=== Nothing addressed to $IDENTITY — but a near miss was seen ==="
-      printf '%s\n' "$NM"
-      echo
-      echo "--- the comments in this batch, so you can judge for yourself:"
-      printf '%s' "$NEW" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
       [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
       exit 0
     fi

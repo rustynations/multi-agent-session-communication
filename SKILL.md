@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.5 -->
+<!-- Version: 2026-09-05.6 -->
 
 # Multi-Agent Session
 
@@ -20,16 +20,10 @@ This is NOT a subagent you spawned. These are peer sessions you cannot see direc
 You need TWO things before doing anything else:
 
 1. **Issue number** — e.g. `42`
-2. **Your identity** — a short name, e.g. `Frank`, `DocWriter`, `Builder`
+2. **Your identity** — a readable role name, e.g. `ARCHITECT`, `BUILDER`, `REVIEWER`
 
 If either is missing from how you were invoked, **STOP and ask the user for it.** Do
 not guess an identity. Do not guess the issue.
-
-**Keep the identity SHORT and hard to mistype** — `ARCH`, `BUILD`, `REV`, `AUDIT`. Addressing
-is matched as **exact text**, so one wrong letter delivers a message to nobody and the sender
-gets no feedback at all. A long name is a long odds-on typo: an agent named `SKILLAUDITER` was
-addressed as `[SKILLAUDITOR]` and the message reached no one (2026-09-05). `watch` now warns on
-a near miss, but a short name avoids the problem instead of catching it.
 
 **Repo:** default to this repo's GitHub remote — `gh repo view --json nameWithOwner -q .nameWithOwner`.
 If the issue lives in a different repo (common for scaffold projects: issues live in
@@ -200,7 +194,6 @@ each waiting on the other is the signature, and neither one can see the problem 
 |---|---|---|
 | **Orphaned watermark** | A relative path plus a `cd`; the empty file baselines to newest | Two watermark files for one agent+issue |
 | **Wrong addressee** | Sent to the agent who **asked**, not the agent who **acts** | The actor holds for a decision that already exists |
-| **Mistyped name** | `[Buidler]`, `[SKILLAUDITOR]` — addressing is exact | The token matches nobody; `watch` now warns on a near miss |
 
 In all three, **nothing errors and the sender gets no feedback.** That is why an absence has to
 be actively looked for. Every one of these was found by someone noticing a silence, not by a
@@ -528,7 +521,6 @@ Then go back to Step 4. That loop IS the session.
 | Escalating without re-reading | `peek` first. The answer may already be on the thread — and a permission refusal may be blocking a step you do not actually need. |
 | **Answering only the agent who asked** | Address **the doer too**, or `[all]`. A decision sent only to the asker never reaches whoever has to act on it. |
 | Treating a relayed approval as authority for a one-way action | Fine for a preference. For a prod push / force-push / delete, require the owner's own words. |
-| A long or easily mistyped identity | Short and distinctive: `ARCH`, `BUILD`, `REV`. Addressing is exact text; one letter wrong reaches nobody. |
 | Closing while peers are mid-post | Post a last call, `watch` through it, then `peek` immediately before the close. |
 | Trusting `gh issue close` to have closed it | It exits 0 on an already-closed issue. Check `state` **and** `closedAt`. |
 | Reading the thread with `gh api` and no `--paginate` | You only see the first 30 comments, so recent messages look missing. |
@@ -579,6 +571,5 @@ wonder whether it had simply been missed.
 - Modes: `init` (mark history seen) · `peek` (read without consuming) · `watch` (block for your mail) · `audit` (block for all traffic — observers).
 - Every call prints the **resolved absolute** watermark path as its first line. If that path ever changes between calls, your cwd moved and your mail is at risk. Check it.
 - Edit detection uses GitHub's `includesCreatedEdit` flag in `watch`, which reports the **first** edit to a comment. `audit` uses the REST API's `updated_at` and catches every edit. (`gh issue view --json comments` does not expose `updatedAt` — it returns `null`.)
-- `watch` warns on a **near miss**: a bracketed name 1–2 edits from your identity. It warns and never auto-delivers — silently accepting a near name could cross-wire two similarly named agents.
 - The stop token is `[SESSION DONE]`, matched anywhere. A bare `SESSION DONE` on its own line no longer stops anything, but `watch` shouts if it sees one, because a live session can still be running the older skill text from its context.
 - **Silent failure is the enemy here.** Every serious bug this skill has had was a message that went missing with no error: an orphaned watermark, a decision sent to the wrong agent, a mistyped name, a stop token in the old format. When something has not happened, look for an absence — do not wait for a failure.
