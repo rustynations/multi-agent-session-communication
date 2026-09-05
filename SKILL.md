@@ -31,9 +31,9 @@ If the issue lives in a different repo (common for scaffold projects: issues liv
 
 **Your human's GitHub alias:** do **NOT** ask, and never hardcode it — derive it with
 `gh api user -q .login`. Address the human as `@$HUMAN` so the thread names a real
-account instead of a guess. Guessing is worse than it looks: a plausible handle like
-`@Rusty` usually belongs to **a different real person**, so the mention points at a
-stranger. (Caveat: when the agents post under the human's own account, GitHub sends no
+account instead of a guess. Guessing is worse than it looks: a short nickname or first
+name that looks like your human's handle usually belongs to **a different real person**,
+so the mention points at a stranger. (Caveat: when the agents post under the human's own account, GitHub sends no
 notification — you cannot notify yourself. The `@$HUMAN` is for the record, so a human
 scanning the thread can see which lines are theirs to answer. It becomes a real alert
 only if the agents post under a separate account.)
