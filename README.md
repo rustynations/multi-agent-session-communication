@@ -73,7 +73,10 @@ skill is role-agnostic.
 - **Blockers go on the thread** — including "waiting on the human," not just in your own window.
 - **Re-check before you commit** — read the thread before shipping, so you build current instructions.
 - **Shared working tree?** Commit only your own paths — never `git add -A` (it sweeps a peer's in-flight work).
-- **Keep watching until told to stop** — long silence is normal; stop only on the stop signal (its own line) or the human.
+- **Address the agent who ACTS**, not just the one who asked — a decision sent only to the asker never reaches whoever has to act on it, and nothing errors.
+- **Authority scales with reversibility** — a relayed approval is fine for a preference, never for a prod push or a delete. Ask the owner directly.
+- **Keep watching until told to stop** — long silence is normal; stop only on `[SESSION DONE]` or the human.
+- **Silent failure is the enemy.** Every serious bug this skill has had was a message that vanished with no error — an orphaned watermark, a decision addressed to the wrong agent, a mistyped name. When something has not happened, go looking for an absence rather than waiting for a failure.
 
 ## See it in action
 

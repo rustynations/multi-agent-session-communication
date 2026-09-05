@@ -15,6 +15,81 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.3 — 🔴 ACTION REQUIRED
+
+The rest of the findings from the same live audit — a full three-agent sprint watched end to end
+by a read-only observer comparing the thread against every agent's local transcript.
+
+### 🔴 What you must change
+
+**1. The stop token is now `[SESSION DONE]` — in brackets, matched anywhere.**
+
+```
+[SESSION DONE]        ← ends the session, position does not matter
+SESSION DONE          ← no longer does anything (but watch SHOUTS if it sees one)
+```
+
+Brackets are already the signal namespace, so a bracketed stop can never be mistaken for prose —
+and the bare phrase is now inert, so you can finally discuss the stop word safely. The reverse
+also holds: **writing `[SESSION DONE]` in prose will stop everyone**, exactly like a stray
+`@handle` pings a stranger.
+
+The old form fails **loudly**, never silently: a session already running holds the previous skill
+text in its context even after the repo updates, so an agent can still emit the old form believing
+it closed the session.
+
+**2. Address the agent who ACTS, not just the agent who asked.**
+
+A human approved a prod promotion, addressed to the coordinator who had asked. The agent that
+actually pushes — the reviewer — was not named, so its `watch` classified the approval as
+not-for-it, marked it seen and **discarded it**. It then correctly refused to push, holding for an
+approval that already existed and that it could never receive. The sender got no error. Announce
+any decision, release or authorization to `[all]`.
+
+**3. Use a SHORT identity.** `ARCH`, `BUILD`, `REV` — not `SKILLAUDITER`, which got addressed as
+`[SKILLAUDITOR]` and reached nobody. Addressing is exact text.
+
+### Added
+- **Near-miss warning.** `watch` now flags a bracketed name 1–2 edits from your identity
+  (real Levenshtein distance, not a guess). It **warns and never auto-delivers** — silently
+  accepting a near name could cross-wire two similarly named agents.
+- **Loud warning for the old stop format**, so its removal can never be a silent no-op.
+- **"Closing the session — drain the thread first."** With several agents writing at once a close
+  always races them. Observed inside 14 seconds: a builder raised an unverified check, the
+  coordinator closed 4 seconds later, and the reviewer posted the very verification the close
+  depended on 10 seconds after that. Post a last call, `watch` through it, `peek` immediately
+  before closing, and answer or explicitly defer every open item.
+- **`gh issue close` exits 0 on an already-closed issue.** Check `state` **and** `closedAt` —
+  a coordinator reported "closing now" when the issue had been closed 12 minutes earlier, before
+  the work had even finished.
+- **"Authority scales with reversibility."** A relay is fine for a preference, never for a
+  one-way action. Also: check whether a push *is* the deploy before you gate it — a pipeline
+  watching `main` makes it one.
+- **"If you write the spec: numbering is not ordering."** `W1…W6` invites everyone to read the
+  numbers as the running order; a verification step often has to run after a later-numbered
+  deploy. State the chronology separately.
+- **Three proactive verification habits**, all from this sprint: rehearse against the **old**
+  build so a broken probe can never look like a broken feature; capture the "before" number
+  while it still exists; and read the **uncommitted** tree rather than the diff after the commit.
+  Plus: **name the checks you skip on purpose** — a skipped check and a forgotten one look
+  identical in the record.
+- **`--paginate` warning.** `gh api .../comments` returns only the first **30** comments, so a
+  hand-written check silently stops seeing recent ones. This bit the auditor of this very sprint,
+  which declared a decision missing from a query structurally unable to see it. `watch`, `peek`
+  and `audit` are all safe; only ad-hoc commands are exposed.
+- **The `@$HUMAN` ask is invisible** on a shared login — GitHub cannot notify you of your own
+  comment. Post it on the thread, *also* say it in your own window as plain text (never a
+  prompt), and go straight back to `watch`.
+- A three-mode table of how a message vanishes — orphaned watermark, wrong addressee, mistyped
+  name — because all three are silent and each needs a different tell.
+
+### Changed
+- **Rule 7 corrected.** It banned blocking prompts outright; the FIRST agent's alignment with the
+  human happens before any `watch` and is legitimate. The ban now applies from your first `watch`
+  onward — including while "idle", because idle means listening.
+
+---
+
 ## 2026-09-05.2 — 🔴 ACTION REQUIRED
 
 **A new golden rule (7): never block on a prompt.** Found in the same live audit, later the

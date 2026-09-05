@@ -109,6 +109,53 @@ newest_ts() {
   jq -r '.comments | if length == 0 then "" else (max_by(.createdAt) | .createdAt) end' "$JSON_TMP" 2>/dev/null || echo ""
 }
 
+# Warn on a NEAR MISS: a bracketed name 1-2 edits from your identity but not equal.
+# Addressing is exact text, so one typo drops the message and the sender gets no
+# feedback at all. This bit for real: a human wrote [SKILLAUDITOR] at an agent named
+# SKILLAUDITER and the message matched nobody (2026-09-05). We WARN and never
+# auto-deliver — silently accepting a near name could cross-wire two similar agents.
+near_miss_warn() {
+  local batch="$1"
+  printf '%s' "$batch" \
+    | jq -r '.[] | .body' 2>/dev/null \
+    | grep -oE '\[[A-Za-z][A-Za-z0-9_-]*\]' \
+    | tr -d '[]' | sort -u \
+    | awk -v me="$IDENTITY" '
+      function lev(a, b,   i, j, la, lb, prev, cur, cost, m) {
+        la = length(a); lb = length(b)
+        if (la == 0) return lb
+        if (lb == 0) return la
+        for (j = 0; j <= lb; j++) prev[j] = j
+        for (i = 1; i <= la; i++) {
+          cur[0] = i
+          for (j = 1; j <= lb; j++) {
+            cost = (substr(a, i, 1) == substr(b, j, 1)) ? 0 : 1
+            m = prev[j] + 1
+            if (cur[j-1] + 1 < m) m = cur[j-1] + 1
+            if (prev[j-1] + cost < m) m = prev[j-1] + cost
+            cur[j] = m
+          }
+          for (j = 0; j <= lb; j++) prev[j] = cur[j]
+        }
+        return prev[lb]
+      }
+      BEGIN { lme = tolower(me); n = 0 }
+      {
+        t = tolower($0)
+        if (t == lme || t == "all") next
+        d = lev(t, lme)
+        if (d >= 1 && d <= 2) { hits[++n] = $0 " (" d " char" (d == 1 ? "" : "s") " off)" }
+      }
+      END {
+        if (n == 0) exit 0
+        print "!! NEAR-MISS ADDRESSING — someone may have meant YOU (" me ") but mistyped it:"
+        for (i = 1; i <= n; i++) print "!!   [" hits[i] "]"
+        print "!! Addressing is EXACT, so those messages were delivered to nobody and the"
+        print "!! sender got no feedback. Read them by hand, and if one was for you, reply"
+        print "!! naming your exact identity so the thread self-corrects."
+      }'
+}
+
 comment_count() {
   jq -r '.comments | length' "$JSON_TMP" 2>/dev/null || echo 0
 }
@@ -198,7 +245,8 @@ if [ "$MODE" = "audit" ]; then
 
         if jq -e --argjson ids "$IDS" '
           any(.[]; ((.id|tostring) as $i | $ids | index($i))
-                   and (.body | test("(^|\n)[ \t]*SESSION DONE[ \t]*(\n|$)")))
+                   and (.body | test("\\[SESSION DONE\\]"; "i")
+                             or test("(^|\n)[ \t]*SESSION DONE[ \t]*(\n|$)")))
         ' "$JSON_TMP" >/dev/null 2>&1; then
           echo "=== SESSION DONE seen on the thread ==="
           exit 42
@@ -291,10 +339,19 @@ while :; do
   if [ "$COUNT" -gt 0 ]; then
     NEWEST="$(printf '%s' "$NEW" | jq -r 'max_by(.createdAt) | .createdAt' 2>/dev/null || echo "")"
 
-    # Match SESSION DONE only as a standalone line (not mentioned inside prose,
-    # which used to false-trigger a stop). See README / skill "Stop word" rule.
-    STOP="$(printf '%s' "$NEW" | jq '[.[] | select(.body | test("(^|\\n)[ \\t]*SESSION DONE[ \\t]*(\\n|$)"))] | length' 2>/dev/null || echo 0)"
+    # Stop signal: ONLY the bracketed token [SESSION DONE], matched ANYWHERE in a
+    # comment. Brackets are already the signal namespace, so a bracketed stop can
+    # never be confused with prose — and the bare phrase in a sentence is now inert,
+    # so the stop word can be discussed safely.
+    STOP="$(printf '%s' "$NEW" | jq '[.[] | select(.body | test("\\[SESSION DONE\\]"; "i"))] | length' 2>/dev/null || echo 0)"
     [ -z "$STOP" ] && STOP=0
+
+    # A bare standalone `SESSION DONE` was the OLD trigger and no longer stops
+    # anything. Never let that fail silently: a live session holds the old skill text
+    # in its context even after the repo updates, so an agent can still emit the old
+    # form believing it ended the session. Say so out loud instead.
+    LEGACY="$(printf '%s' "$NEW" | jq '[.[] | select((.body | test("(^|\\n)[ \\t]*SESSION DONE[ \\t]*(\\n|$)")) and (.body | test("\\[SESSION DONE\\]"; "i") | not))] | length' 2>/dev/null || echo 0)"
+    [ -z "$LEGACY" ] && LEGACY=0
 
     MAIL="$(printf '%s' "$NEW" | jq --arg id "$IDENTITY" '
       [ .[]
@@ -305,19 +362,60 @@ while :; do
     MAILCOUNT="$(printf '%s' "$MAIL" | jq 'length' 2>/dev/null || echo 0)"
     [ -z "$MAILCOUNT" ] && MAILCOUNT=0
 
+    NM="$(near_miss_warn "$NEW" 2>/dev/null || echo "")"
+
     if [ "$STOP" -gt 0 ]; then
       echo "=== SESSION DONE received ==="
       printf '%s' "$NEW" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
+      # A stop wins over everything, but a mistyped name in the same batch is still
+      # worth knowing — it may be the last thing anyone tried to tell you.
+      [ -n "$NM" ] && { echo; printf '%s\n' "$NM"; }
       [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
       exit 42
+    fi
+
+    if [ "$LEGACY" -gt 0 ]; then
+      echo "########################################################################"
+      echo "## WARNING — OLD-FORMAT STOP SIGNAL SEEN. IT DID *NOT* STOP ANYTHING."
+      echo "##"
+      echo "## Someone posted a bare \`SESSION DONE\` on its own line. That was the"
+      echo "## old trigger. The signal is now the bracketed token \`[SESSION DONE]\`,"
+      echo "## so this session is STILL RUNNING and every other agent is still"
+      echo "## watching — including whoever posted it, who probably believes they"
+      echo "## just closed the session."
+      echo "##"
+      echo "## Most likely cause: that agent loaded an older copy of the skill into"
+      echo "## its context before the repo updated. Its instructions are stale even"
+      echo "## though the script on disk is current."
+      echo "##"
+      echo "## DO THIS: if the session really is finished, post the bracketed token"
+      echo "## yourself. If it is not, say so on the thread so nobody stands down."
+      echo "########################################################################"
+      echo
+      printf '%s' "$NEW" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
+      [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
+      exit 0
     fi
 
     if [ "$MAILCOUNT" -gt 0 ]; then
       echo "=== New mail for $IDENTITY ($MAILCOUNT) ==="
       [ -n "$EDITED_OUT" ] && printf '%s\n' "$EDITED_OUT"
       printf '%s' "$MAIL" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
+      [ -n "$NM" ] && { echo; printf '%s\n' "$NM"; }
       echo "--- read ALL of the above before you act: a single batch can hold"
       echo "--- several messages, and the later one may change the earlier one."
+      [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
+      exit 0
+    fi
+
+    # No mail for us — but if someone MISTYPED our name, that message reached nobody.
+    # Surface it now rather than warning into a void nine minutes from now.
+    if [ -n "$NM" ]; then
+      echo "=== Nothing addressed to $IDENTITY — but a near miss was seen ==="
+      printf '%s\n' "$NM"
+      echo
+      echo "--- the comments in this batch, so you can judge for yourself:"
+      printf '%s' "$NEW" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
       [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
       exit 0
     fi
