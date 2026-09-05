@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.6 -->
+<!-- Version: 2026-09-05.7 -->
 
 # Multi-Agent Session
 
@@ -188,7 +188,7 @@ This is the listening half of the record: post at your boundaries, and **read at
 Lost mail does not look like an error. It looks like **someone doing nothing.** Two agents
 each waiting on the other is the signature, and neither one can see the problem from inside.
 
-**Three ways a message vanishes, all silent:**
+**Four ways a message vanishes, all silent:**
 
 | Mode | Cause | Tell |
 |---|---|---|
@@ -435,10 +435,33 @@ It returns only when there is real mail for you, a `[SESSION DONE]`, or it times
 "$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"
 ```
 
-> ### Run the watcher in the BACKGROUND
+> ### Run the watcher in the BACKGROUND — via the HARNESS, never with `&`
 >
-> If your harness can run a command in the background (Claude Code: `run_in_background`, or
-> `ctrl+b`), **do that.** You are re-invoked when it returns, so you lose nothing — and you gain
+> **Use your harness's own background flag** (Claude Code: `run_in_background`, or `ctrl+b`).
+> It captures the output and wakes you when the command returns.
+>
+> ```
+> "$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"          # + run_in_background / ctrl+b
+>
+> "$POLL" watch ... > /dev/null 2>&1 &                # ☠️ DESTROYS YOUR MAIL
+> "$POLL" watch ... &                                 # ☠️ output goes nowhere you will read
+> ```
+>
+> A shell `&` detaches the poller from you. It still runs, still collects your mail, and still
+> **advances your watermark** — then throws the mail away. No error. Nothing on the thread looks
+> wrong. You look busy. An agent did exactly this and lost its human's own message (2026-09-05).
+>
+> **Never redirect the output either.** The output IS the mail.
+>
+> **Cheap self-check, and it is how that agent caught itself:** compare your watermark against
+> the newest comment you have actually read.
+> ```
+> cat "$WM"                                        # what has been consumed
+> ```
+> A watermark **ahead** of your own reading is proof that something was delivered and discarded.
+> Recover it with `peek`, then say on the thread that you lost mail so senders can re-send.
+>
+> You are re-invoked when a harness-backgrounded watch returns, so you lose nothing — and you gain
 > the single best property in this whole protocol:
 >
 > **You keep listening AND stay reachable at the same time.**
@@ -513,7 +536,9 @@ Then go back to Step 4. That loop IS the session.
 | Re-sending only the trigger after lost mail | Re-post the **full** message. A bare "go" strips every decision and bound that rode with the original, and nobody can tell what is missing. |
 | Acting on the first message in a batch | One `watch` can return several messages. Read them all — a later one may change an earlier one. |
 | Assuming a silent agent is busy | Silence can mean lost mail. `peek` the thread and compare it against that agent's watermark before you wait any longer. |
-| Polling in the foreground | Background the watcher. A foreground poll makes you unreachable for ~9 min, and any prompt then makes you deaf. |
+| Polling in the foreground | Background the watcher via the harness flag. A foreground poll makes you unreachable for ~9 min, and any prompt then makes you deaf. |
+| **Backgrounding with `&` or redirecting the output** | The poller consumes your mail, advances the watermark and bins it — silently. Use the harness's background flag; the output IS the mail. |
+| Not checking your own watermark | `cat "$WM"`. A watermark AHEAD of the newest comment you actually read proves mail was consumed and discarded. |
 | Auditing with `watch` | `watch` returns only mail addressed to you and **discards** everything else. An observer needs `audit`, which returns all traffic. |
 | **Asking with `AskUserQuestion`** | It freezes your session, so you stop polling while the thread still says you are watching. Post the ask on the thread and go back to `watch`. |
 | Posting "parked, watching" and then not watching | If you are not in `watch`, do not claim you are. A false status is worse than silence — it stops peers looking for the problem. |
