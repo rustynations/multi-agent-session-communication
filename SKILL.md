@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-04.3 -->
+<!-- Version: 2026-09-05.1 -->
 
 # Multi-Agent Session
 
@@ -86,7 +86,51 @@ you work. So before any **commit / push / deploy** (or after a long heads-down s
 **one quick read** of the thread. Build the instructions that are **current now**, not the
 ones from when you started. If a decision changed your task, absorb it before you ship.
 
+Use `peek` — it prints the recent thread and **does not move your watermark**, so your next
+`watch` still delivers everything it would have:
+
+```
+"$POLL" peek "$ISSUE" "$ME" "$REPO" "$WM" 10
+```
+
 This is the listening half of the record: post at your boundaries, and **read at them too.**
+
+## When a message goes missing
+
+Lost mail does not look like an error. It looks like **someone doing nothing.** Two agents
+each waiting on the other is the signature, and neither one can see the problem from inside.
+
+**Spot it.** If an agent has been silent since it said "holding", check the thread against
+its watermark instead of assuming it is busy:
+
+```
+"$POLL" peek "$ISSUE" "$ME" "$REPO" "$WM" 20     # what was actually said
+cat "$WM"                                        # what that agent has consumed
+ls -la "$HOME/.claude/mas-state/" | grep "$ISSUE"  # TWO files for one agent = orphaned
+```
+
+Two watermark files for the same agent and issue is proof. Compare their values against the
+timestamp of the message that seems to have vanished — a message dated **between** them was
+swallowed.
+
+**Recover it — three rules, in order:**
+
+1. **Rewind the watermark. Do not carry the broken value forward.** The tempting fix is to
+   copy the newer file to the correct path. That keeps the value that caused the loss, so the
+   message stays unreachable. Set the watermark to just **before** the lost message instead:
+   ```
+   echo "2026-09-05T15:25:00Z" > "$WM"   # one second before the lost comment
+   ```
+2. **Re-send the FULL message, not just the trigger.** A lost `[BUILDER] go` almost never
+   carries only the word "go" — it carries decisions, bounds, and clarifications that rode
+   along with it. Re-posting a bare "go" hands the work back with **every instruction
+   stripped out, and nobody can tell what is missing.** Copy the original body verbatim.
+3. **Say it on the thread.** Name what was lost and that it was lost, not withheld. An agent
+   that missed a message did nothing wrong, and the record needs to show why the gap exists.
+
+**Verify before you accuse.** Read the two watermark files and the message timestamp yourself,
+even if a peer hands you the diagnosis. Same rule as any alarming result: cheapest
+discriminating check first.
 
 ## Sharing a working tree
 
@@ -143,18 +187,61 @@ your assigned role, then announce and start watching. If you were told to hold f
 loop for the first agent only. (If your role genuinely isn't defined on the thread, ask the
 **coordinator** there — still not the human.)
 
+### If you are an OBSERVER (auditor / reviewer of the session itself)
+
+You are on the thread but **not on the work.** You write no code, gate nothing, and decide
+nothing about the issue. Three differences from a working agent:
+
+- **Use `audit`, not `watch`.** `watch` returns only mail addressed to you and **throws the
+  rest away** — so the agent-to-agent traffic you exist to observe never reaches you. `audit`
+  returns every new or edited comment, and your own comments never wake you.
+- **Announce once, then go quiet.** Say you are read-only and that nobody should address you,
+  report to you, or wait on you. Then stay silent. A chatty observer bends the session it is
+  measuring; a completely silent one leaves no record it was ever there, which breaks the
+  thread-is-the-truth rule.
+- **Break silence only for a derailment,** and hand the fix to whoever owns the decision. Post
+  the evidence, name the owner, and **do not act on their behalf.** Never post `SESSION DONE`.
+
+```
+"$POLL" audit "$ISSUE" "$ME" "$REPO" "$WM"
+```
+
 ## Workflow
 
-Set variables once (use the project `tmp/` for the watermark file):
+Set variables once. **The watermark path must be ABSOLUTE and cwd-independent** —
+see the warning right below, it has already deadlocked a real sprint:
 
 ```
 ISSUE=42
 ME=Frank
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 HUMAN=$(gh api user -q .login)   # your human's real GitHub alias — derived, never asked
-WM=tmp/mas-watermark-${ME}-${ISSUE}.txt
 POLL=~/.claude/skills/multi-agent-session/poll-issue.sh
+
+# Watermark: fixed location, immune to `cd` and to a session restart.
+mkdir -p "$HOME/.claude/mas-state"
+WM="$HOME/.claude/mas-state/$(printf '%s' "$REPO" | tr '/' '-')-${ISSUE}-${ME}.txt"
 ```
+
+> ### ⚠️ NEVER use a relative watermark path
+>
+> **Bash cwd PERSISTS between tool calls in Claude Code.** A relative path like
+> `tmp/mas-watermark-...` follows your cwd, so **one `cd` into a subdirectory points
+> the same argument at a different, empty file.** An empty watermark baselines to the
+> newest comment — so every message waiting for you is **silently swallowed. No error.
+> No warning.**
+>
+> This is not hypothetical. On 2026-09-05 a BUILDER agent ran `init` from the project
+> root, then `cd`-ed into a component repo to read code. Its next `watch` created a
+> second watermark file and jumped straight past the `[BUILDER] go` that had landed in
+> between. BUILDER waited forever for a go it had already been sent, the coordinator
+> believed BUILDER was building, and the reviewer waited on BUILDER. **All three agents
+> stopped**, and nothing on the thread showed anything was wrong.
+>
+> `$HOME/.claude/mas-state/` is used above **on purpose**, over the usual project
+> `tmp/`: it cannot move when you `cd`, and it survives a session restart from a
+> different directory. Every `init` / `peek` / `watch` call must pass the **same**
+> absolute path.
 
 **Step 1 — mark history as seen** (so you do not reprocess old comments):
 
@@ -182,10 +269,20 @@ It returns only when there is real mail for you, a SESSION DONE, or it times out
 
 Read the exit code:
 - **0** → new mail printed. Handle it (see Step 5), then run `watch` again.
+  - **Read the WHOLE batch before you act.** One `watch` can return several messages at
+    once, and a later one may cancel or change an earlier one. Acting on the first line and
+    ignoring the rest is how an agent ends up building the wrong thing while believing it is
+    on spec.
+  - A message may be flagged `*** EDITED AFTER YOU SAW IT ***`. That means text you already
+    absorbed has changed under you — re-read it, because your earlier understanding is stale.
   - **If it means your goal is met** (your question is answered, the work is agreed or done),
     do not just fall silent — post `SESSION DONE` to close the session.
 - **42** → SESSION DONE. Post `"$ME: signing off."` and stop. Tell the human.
 - **10** → nothing yet. Just run `watch` again to keep listening.
+
+If `watch` prints a **`WARNING — NO WATERMARK FOUND`** banner, stop and treat it as lost mail:
+read the thread by hand and follow **When a message goes missing** above. Do not just carry on
+watching — anything sent to you before that moment will never arrive.
 
 **Step 5 — reply (only if needed):**
 
@@ -221,6 +318,13 @@ Then go back to Step 4. That loop IS the session.
 | Theorising on a scary result before the cheapest check | An alarming reading gets ONE cheap isolated re-check first, not a fan-out of theories. See below. |
 | Verifying on unstable ground | Don't test mid-deploy-propagation, and don't use a probe that dies before reaching the code. See below. |
 | Inflating a minor finding into an epic | A minor limitation is a one-line note, not a multi-defect issue with a spec. |
+| **Relative watermark path** | Use an absolute, cwd-proof path (`$HOME/.claude/mas-state/...`). Bash cwd persists between calls, so one `cd` orphans a relative watermark and mail vanishes with no error. **This has deadlocked a real sprint.** |
+| Ignoring the `NO WATERMARK FOUND` banner | It means mail was probably lost. Read the thread by hand, then follow "When a message goes missing". |
+| Copying a broken watermark to the fixed path | Copying keeps the value that caused the loss. **Rewind** to just before the lost message instead. |
+| Re-sending only the trigger after lost mail | Re-post the **full** message. A bare "go" strips every decision and bound that rode with the original, and nobody can tell what is missing. |
+| Acting on the first message in a batch | One `watch` can return several messages. Read them all — a later one may change an earlier one. |
+| Assuming a silent agent is busy | Silence can mean lost mail. `peek` the thread and compare it against that agent's watermark before you wait any longer. |
+| Auditing with `watch` | `watch` returns only mail addressed to you and **discards** everything else. An observer needs `audit`, which returns all traffic. |
 
 ## When a verification looks alarming — cheapest check FIRST
 
@@ -238,3 +342,6 @@ A scary result ("the whole feature is broken") invites elaborate root-cause **th
 
 - The watcher blocks up to ~9 min per call (under the 600s Bash timeout), then exits 10 so you re-run it. This is normal; **keep re-running — for hours if the task takes that long.** Idle time is never a reason to stop; only `SESSION DONE` or the human ends the watch.
 - All agents share one GitHub login, so mail is matched by TEXT (`[name]` / `[all]`), not by author. That is why signing and addressing are mandatory.
+- Modes: `init` (mark history seen) · `peek` (read without consuming) · `watch` (block for your mail) · `audit` (block for all traffic — observers).
+- Every call prints the **resolved absolute** watermark path as its first line. If that path ever changes between calls, your cwd moved and your mail is at risk. Check it.
+- Edit detection uses GitHub's `includesCreatedEdit` flag in `watch`, which reports the **first** edit to a comment. `audit` uses the REST API's `updated_at` and catches every edit. (`gh issue view --json comments` does not expose `updatedAt` — it returns `null`.)

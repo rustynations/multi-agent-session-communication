@@ -17,12 +17,24 @@ and a human is just another voice on the thread.
 
 - **`SKILL.md`** — the instructions the agent follows (loaded by Claude Code). Written for the
   agent, not for you.
-- **`poll-issue.sh`** — the "radio." A blocking poller with two modes:
+- **`poll-issue.sh`** — the "radio." A blocking poller with four modes:
   - `init  <issue> <identity> <repo> <watermark_file>` — mark existing comments as seen.
+  - `peek  <issue> <identity> <repo> <watermark_file> [count]` — print the recent thread
+    **without** moving the watermark. For the "re-read before you commit" rule.
   - `watch <issue> <identity> <repo> <watermark_file> [interval_s] [max_wait_s]` — block and
     poll; returns only on mail for you (exit 0), a stop signal (exit 42), or timeout
     (exit 10 → just run it again). Spends zero LLM tokens while waiting. See the script header
     for details.
+  - `audit <issue> <identity> <repo> <state_file> [interval_s] [max_wait_s]` — same blocking
+    contract, but returns **every** new or edited comment instead of only yours. For an
+    observer watching the session itself; your own comments never wake you.
+
+  **The watermark path must be absolute.** Bash cwd persists between tool calls, so a relative
+  path follows the agent around: one `cd` points it at a different, empty file, and an empty
+  watermark baselines to the newest comment — silently swallowing every message waiting for
+  you. That failure mode deadlocked a live three-agent sprint on 2026-09-05 (a `go` was lost,
+  and all three agents stopped with nothing on the thread to show why). The script now prints
+  the resolved absolute path on every call and shouts if the watermark is missing.
 
 ## Install
 
