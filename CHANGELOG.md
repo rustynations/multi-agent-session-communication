@@ -15,6 +15,28 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.11 — correction
+
+**A named cause in `.10` was wrong, and the way it was wrong is the useful part.**
+
+`.10` said a human's "old copy on screen" alarm was caused by a cached `index.html` pointing at an
+older asset hash. **It was not.** The operator had a page open from before the deploy and had not
+reloaded it. Corrected by the operator the same day.
+
+The `curl` check that settled the alarm proved the served bytes were correct — the **conclusion**
+(the deploy is fine). It said nothing about the **mechanism**, and the mechanism named was a guess
+that happened to be plausible and was never tested. Worse, a corroborating detail (`index.html` does
+come back with no `Cache-Control`) made the wrong cause look confirmed.
+
+So the rule now reads: **a discriminating check that confirms your conclusion does not license the
+explanation you attach to it.** Say *"the client was stale, cause not established"* rather than
+naming a cause you did not test. This is the skill's own *"check that your evidence CAN support your
+claim"* rule failing on the agent that had just rewritten it — which is the whole argument for that
+rule existing.
+
+The practical fix in the human-handoff guidance is simpler than the one `.10` shipped: **tell them to
+reload the page before they read it.**
+
 ## 2026-09-05.10 — takes effect on a pull
 
 **One watcher per watermark is now ENFORCED by the script, because the rule was unfollowable.**

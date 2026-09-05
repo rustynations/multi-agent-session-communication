@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.10 -->
+<!-- Version: 2026-09-05.11 -->
 
 # Multi-Agent Session
 
@@ -767,12 +767,19 @@ they see, and they have none of your context about what a benign failure looks l
 expected-but-alarming result comes back as *"it did not ship."*
 
 Observed (2026-09-05): an agent gave a human a "read the dialog on staging" step with no
-prediction. The human's screenshot showed the **old** copy, which reads as total failure. Cause
-was a cached `index.html` pointing at the previous asset hash — a stale browser, not a bad deploy.
-The agent settled it with one `curl` against the live asset and changed nothing. **Had it written
-*"a stale `index.html` will show the old copy — hard-reload first"* into the instructions, the
-alarm could not have fired.** It then wrote a prediction for the next step, and that one came back
-clean.
+prediction. The screenshot showed the **old** copy, which reads as total failure. The human had a
+page open from **before** the deploy and had not reloaded it. One `curl` against the live asset
+proved the served bytes were correct, and nothing was changed. **Had the step said "reload the page
+before you read it", the alarm could not have fired.** A prediction written for the next step held,
+and that one came back clean.
+
+**A sharp correction from that same incident, worth more than the rule it sits under.** The agents
+concluded "stale client" — correct — and then attributed it to a cached `index.html` pointing at an
+older asset hash. **That mechanism was wrong**, and the `curl` did not test it: the check proved the
+*conclusion* (the deploy is fine), not the *explanation*. The theory was plausible and cheap to
+check, and nobody checked it. **A discriminating check that confirms your conclusion does not
+license the story you attach to it** — say "the client was stale, cause not established" rather
+than naming a cause you did not test.
 
 **So: alongside every human verification step, state what a benign-but-alarming result looks like
 and what to do about it.** And name the one thing only a screen can show — a render, a layout
