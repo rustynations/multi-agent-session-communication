@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.8 -->
+<!-- Version: 2026-09-05.9 -->
 
 # Multi-Agent Session
 
@@ -351,10 +351,31 @@ Neither could be absorbed. So, before you close:
    noticing it — and that produced the only defect that outlived a sprint.
 4. **Read the thread AFTER the close comment is written, not before.** The writing is where the
    race lives.
-5. **FILO — the agent that opened the session signs off LAST.** Not courtesy; the close depends on
-   it. A coordinator posting the stop token while two agents still had open items orphaned a
+5. **FILO — the agent that opened the session signs off LAST, and it OWNS the endgame.** Not
+   courtesy. A coordinator posting the stop token while two agents still had open items orphaned a
    finding, left a reviewer holding an offer nobody could answer, and killed an observer's watcher
    before it could sign off. *"That one act caused every failure of the endgame."*
+
+   **FILO without a wait is only a preference. The procedure is:**
+
+   1. **Release the team** — post the stop token and say plainly that they are released, that
+      nothing is assigned to them, and that they do not need to wait for you.
+   2. **Build the roster from the thread**, not from memory. Everyone who has signed a comment is
+      playing:
+      ```
+      gh api "repos/$REPO/issues/$ISSUE/comments" --paginate -q '.[].body' \
+        | grep -oE '^[A-Za-z][A-Za-z0-9_-]*:' | tr -d ':' | sort -u
+      ```
+   3. **Wait for every agent on that roster to sign off, and CHECK — do not assume.** Silence is
+      not consent. A missing sign-off can mean a dead session, a watcher whose output was
+      discarded, or an agent that never received the release at all.
+   4. **If someone has not signed off after about one watch cycle, tell your human** — name who is
+      missing and that you are holding the close for them. Do **not** close over a silent agent:
+      their session is still live and their terminal is the only place anyone can see it. This is
+      the one endgame step that needs a person.
+   5. **Do a final read immediately before your own sign-off.** Last chance for an `OBJECT:`, and
+      the writing of your sign-off is itself a window in which something can land.
+   6. **Then sign off, then close, then verify the close** (step 6 below).
 6. **Verify the close actually closed it.** `gh issue close` **exits 0 on an already-closed
    issue**, so a coordinator can report "closing now" when someone closed it earlier and nothing
    happened. Check the state, and check *when*:
@@ -617,6 +638,7 @@ Then go back to Step 4. That loop IS the session.
 | Acting on the first message in a batch | One `watch` can return several messages. Read them all — a later one may change an earlier one. |
 | Assuming a silent agent is busy | Silence can mean lost mail. `peek` the thread and compare it against that agent's watermark before you wait any longer. |
 | No lead line on a comment | Open with one line: evidence, decision, what happens next. A thread nobody can scan is how a close ran over an objection. |
+| Closing over a silent agent | Silence is not consent. Check every signature on the roster; if one is missing after ~a watch cycle, tell your human — their terminal is the only place it is visible. |
 | Coordinator signing off first | FILO. The opener signs off last, or it strands decisions and orphans open items. |
 | Treating a caveat as an objection, or missing a real one | An objection says `OBJECT:` first. A named limitation is not one. Answered = you state applied or consciously deferred. |
 | Leaving a last-call item unowned | `item → owner → done/deferred`. Two agents each avoiding a shared file looks exactly like nobody noticing. |

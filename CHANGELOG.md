@@ -15,6 +15,28 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.9 — 🟡 recommended change
+
+**FILO now has a procedure. Without one it was only a preference.**
+
+`.8` said the opener signs off last. It did not say the opener has to **wait**, **check**, or
+**escalate** — so "last out" could still mean closing while an agent sat live and silent.
+
+The endgame the coordinator owns:
+
+1. **Release the team** — stop token, plus "nothing is assigned to you, do not wait for me".
+2. **Build the roster from the thread**, not from memory — everyone who signed a comment is playing.
+3. **Wait for every agent on that roster to sign off, and check.** Silence is not consent: a missing
+   sign-off can mean a dead session, a watcher whose output was discarded, or an agent that never
+   received the release.
+4. **If one is still missing after about a watch cycle, tell your human** — name who, and say you
+   are holding the close. Do not close over a silent agent; their terminal is the only place anyone
+   can see it. **This is the one endgame step that needs a person.**
+5. **Final read immediately before your own sign-off** — writing it is itself a window.
+6. **Sign off, close, verify the close.**
+
+---
+
 ## 2026-09-05.8 — 🔴 ACTION REQUIRED
 
 Everything here comes from a **structured debrief with the three agents that ran the sprints**
