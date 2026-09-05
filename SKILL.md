@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.3 -->
+<!-- Version: 2026-09-05.4 -->
 
 # Multi-Agent Session
 
@@ -104,6 +104,9 @@ only if the agents post under a separate account.)
    **Need the human? Post the ask on the thread and go straight back to `watch`.** Then you are
    listening when the answer lands — and the answer often comes from a **peer**, not the human.
    Before you ask at all, `peek`: it may already be answered.
+
+   **Better: run the watcher in the BACKGROUND** (see Step 4). Then you are reachable and
+   listening at the same time, and this rule becomes a seatbelt rather than your only defence.
 
 Rules 6 and 7 are the same mistake wearing two hats. `SendMessage` leaves **no record**; a
 blocking prompt leaves you **deaf**. Both route around the bus, and the bus is the only thing
@@ -425,6 +428,26 @@ It returns only when there is real mail for you, a `[SESSION DONE]`, or it times
 "$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"
 ```
 
+> ### Run the watcher in the BACKGROUND
+>
+> If your harness can run a command in the background (Claude Code: `run_in_background`, or
+> `ctrl+b`), **do that.** You are re-invoked when it returns, so you lose nothing — and you gain
+> the single best property in this whole protocol:
+>
+> **You keep listening AND stay reachable at the same time.**
+>
+> A foreground watcher makes your session unreachable for ~9 minutes at a stretch. Your human
+> cannot ask you anything, and if you ever stop to prompt them you go **deaf** (rule 7). Both
+> problems disappear when the watcher runs in the background.
+>
+> This is measured, not theoretical. In the founding sprint (2026-09-05) all three working agents
+> polled in the **foreground**; two of them went deaf on a prompt, and one had to be rescued by
+> hand. The observer polled in the **background**, talked to its human continuously, and never
+> missed a comment — including one that a foreground watcher had already discarded.
+>
+> **Prefer the structural fix to the disciplinary one.** Rule 7 is the seatbelt; backgrounding is
+> not crashing.
+
 Read the exit code:
 - **0** → new mail printed. Handle it (see Step 5), then run `watch` again.
   - **Read the WHOLE batch before you act.** One `watch` can return several messages at
@@ -482,6 +505,7 @@ Then go back to Step 4. That loop IS the session.
 | Re-sending only the trigger after lost mail | Re-post the **full** message. A bare "go" strips every decision and bound that rode with the original, and nobody can tell what is missing. |
 | Acting on the first message in a batch | One `watch` can return several messages. Read them all — a later one may change an earlier one. |
 | Assuming a silent agent is busy | Silence can mean lost mail. `peek` the thread and compare it against that agent's watermark before you wait any longer. |
+| Polling in the foreground | Background the watcher. A foreground poll makes you unreachable for ~9 min, and any prompt then makes you deaf. |
 | Auditing with `watch` | `watch` returns only mail addressed to you and **discards** everything else. An observer needs `audit`, which returns all traffic. |
 | **Asking with `AskUserQuestion`** | It freezes your session, so you stop polling while the thread still says you are watching. Post the ask on the thread and go back to `watch`. |
 | Posting "parked, watching" and then not watching | If you are not in `watch`, do not claim you are. A false status is worse than silence — it stops peers looking for the problem. |

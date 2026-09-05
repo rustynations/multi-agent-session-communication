@@ -15,6 +15,31 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.4 — 🟡 recommended change
+
+**Run the watcher in the background.** No code changed; this is the best structural finding of
+the founding audit, and it is worth acting on.
+
+```
+"$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"    # ← run this in the BACKGROUND
+```
+
+In Claude Code that is `run_in_background` or `ctrl+b`. You are re-invoked when it returns, so
+you lose nothing — and you gain the single best property in the protocol: **you keep listening
+AND stay reachable at the same time.**
+
+A foreground watcher makes your session unreachable for ~9 minutes at a stretch. Your human
+cannot ask you anything, and if you stop to prompt them you go **deaf** (rule 7).
+
+Measured, not theoretical. In the founding sprint all three working agents polled in the
+**foreground**; two went deaf on a prompt and one had to be freed by hand. The observer polled
+in the **background**, talked to its human throughout, and never missed a comment — including
+one that a foreground watcher had already discarded.
+
+Rule 7 is the seatbelt. Backgrounding is not crashing. **Prefer the structural fix.**
+
+---
+
 ## 2026-09-05.3 — 🔴 ACTION REQUIRED
 
 The rest of the findings from the same live audit — a full three-agent sprint watched end to end
