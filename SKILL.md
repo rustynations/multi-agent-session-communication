@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.9 -->
+<!-- Version: 2026-09-05.10 -->
 
 # Multi-Agent Session
 
@@ -223,25 +223,44 @@ This is the listening half of the record: post at your boundaries, and **read at
 Lost mail does not look like an error. It looks like **someone doing nothing.** Two agents
 each waiting on the other is the signature, and neither one can see the problem from inside.
 
-**Four ways a message vanishes, all silent:**
+**There are only TWO mechanisms.** Seven incidents across three sprints all reduce to these, and
+the split matters because **only one of them yields to being careful:**
 
-| Mode | Cause | Tell |
+| | **Delivery side** — it never entered your output | **Reading side** — it entered, nobody read it |
 |---|---|---|
-| **Orphaned watermark** | A relative path plus a `cd`; the empty file baselines to newest | Two watermark files for one agent+issue |
-| **Wrong addressee** | Sent to the agent who **asked**, not the agent who **acts** | The actor holds for a decision that already exists |
+| **Causes** | Orphaned watermark (relative path + a `cd`) · addressed to the agent who **asked**, not the one who **acts** · a misspelled name your filter rejects · **no watcher armed at all** (`init` is not `watch`) | Poller backgrounded with shell `&` · output sent to `/dev/null` · two watchers armed and only one output file read |
+| **What you see** | Your poller runs, reads fine, and truthfully says "no mail" about a set that never held the message | Nothing. There is no output to read, or it went in the bin |
+| **The fix** | **Not reachable by discipline.** You cannot read your way out of a poller pointed at the wrong file. Only the machine noticing and shouting helps — the `NO WATERMARK FOUND` banner and the `init` banner exist for this | **Discipline, and it is one sentence: one armed watcher, one output file read.** Held every time it was tested |
 
-In all three, **nothing errors and the sender gets no feedback.** That is why an absence has to
-be actively looked for. Every one of these was found by someone noticing a silence, not by a
-failure.
+**Neither side errors, and the sender gets no feedback either way.** That is why an absence has
+to be actively looked for.
 
-**Spot it.** If an agent has been silent since it said "holding", check the thread against
-its watermark instead of assuming it is busy:
+**A rule you break while looking at it belongs in the machine.** All three agents of one sprint
+broke the one-watcher rule inside an hour — two of them minutes after reading a written analysis
+of someone else breaking it. That is why `watch` and `audit` now **refuse to start** when a live
+watcher already holds the watermark, rather than asking you to remember.
+
+### Is a peer actually listening?
+
+**The rule is the peer's own acknowledgement.** Ask, and wait for them to say so. Only the peer
+can tell you a message was *delivered* — and **consumed is not delivered.** A watermark advancing
+proves a poller ate the comment; a poller binning its output to `/dev/null` eats it exactly the
+same way.
+
+**The shortcut, when every agent shares one filesystem:** read the peer's watermark and see
+whether it moved past your message. Cheaper and more direct than reading a transcript, and it is
+the artifact the protocol actually depends on.
 
 ```
-"$POLL" peek "$ISSUE" "$ME" "$REPO" "$WM" 20     # what was actually said
-cat "$WM"                                        # what that agent has consumed
-ls -la "$HOME/.claude/mas-state/" | grep "$ISSUE"  # TWO files for one agent = orphaned
+"$POLL" peek "$ISSUE" "$ME" "$REPO" "$WM" 20        # what was actually said
+cat "$HOME/.claude/mas-state/<repo>-<issue>-PEER.txt"  # what that peer has consumed
+ls -la "$HOME/.claude/mas-state/" | grep "$ISSUE"   # TWO files for one agent = orphaned
 ```
+
+> ⚠️ **An absent watermark file means "I cannot tell" — never "they are not listening."**
+> Agents on separate machines, containers or cloud sessions do not share
+> `~/.claude/mas-state/`, so every healthy peer would look deaf. Check that they share a
+> filesystem before you read anything into a missing file, and fall back to asking them.
 
 > **⚠️ Reading the thread by hand? Always pass `--paginate`.**
 > `gh api .../issues/N/comments` returns only the **first 30** comments. Past that, a
@@ -319,7 +338,38 @@ to. Nothing else. Not one hour of quiet, not several, not a hunch that "it looks
 If you genuinely think the session should end, that is the human's call — ask on the thread
 and wait. Do not pause or stand down on your own judgment.
 
+### If the last open item belongs to your human, post a heartbeat
+
+**Make the silence legible instead of ambiguous.** When everything is built, pushed and verified
+and the only thing left needs a person, a long quiet stretch is indistinguishable from a deadlock
+to anyone reading the thread — including the human, who may not know they are the blocker.
+
+After a stretch of quiet, the coordinator posts one comment:
+
+- **the state table, frozen** — every item and where its evidence is
+- **the one open item, and who owns it** — by name
+- **that nothing is degrading and nothing needs re-running**
+- **"quiet is not a stop signal"**
+- **that the other agents are not being waited on**, and an offer to record a stand-down if one
+  needs to stop before the close
+
+Then keep watching. Observed working (2026-09-05): 65 minutes of quiet while a human was away, and
+one heartbeat turned "is this dead?" into a legible hold — costing one comment.
+
+**Do not build a timeout instead.** A timeout stands agents down on a clock, which is exactly the
+judgment call the rule above reserves for the human. A heartbeat is cheaper and it removes the
+ambiguity that made a timeout look attractive.
+
 ## Closing the session — drain the thread first
+
+> **Issue status is not session status.** A session ends on the stop token plus every sign-off,
+> and on nothing else. Whether the issue is open or closed is bookkeeping — it starts nothing,
+> ends nothing, and is not a signal to act on. A closed issue still accepts comments, and every
+> watcher still reads them, so an issue closed early changes no agent's behaviour and blocks no
+> work. **Do not treat a state change as an instruction, and do not stand down because a tracker
+> says you are done.** Observed on `gotjeep.com-project#182` (2026-09-05): a commit trailer closed
+> the issue ~1h46m before the last acceptance check, three agents kept working normally, and the
+> only real cost was a tracker that briefly asserted "done" too early.
 
 With several agents writing at once, **a close always races them.** Someone is usually mid-post
 when you decide it is over, and their comment lands after your close comment — unread, unanswered,
@@ -376,14 +426,18 @@ Neither could be absorbed. So, before you close:
    5. **Do a final read immediately before your own sign-off.** Last chance for an `OBJECT:`, and
       the writing of your sign-off is itself a window in which something can land.
    6. **Then sign off, then close, then verify the close** (step 6 below).
-6. **Verify the close actually closed it.** `gh issue close` **exits 0 on an already-closed
-   issue**, so a coordinator can report "closing now" when someone closed it earlier and nothing
-   happened. Check the state, and check *when*:
+6. **Verify the close actually closed it — so you do not report something false.** `gh issue
+   close` **exits 0 on an already-closed issue**, so a coordinator can announce "closing now"
+   about something closed hours earlier and nothing will contradict it.
    ```
    gh issue view "$ISSUE" --repo "$REPO" --json state,closedAt
    ```
-   A `closedAt` earlier than your own close means somebody beat you to it — quite possibly before
-   the work finished.
+   A `closedAt` earlier than your own close means somebody beat you to it — most often a commit
+   trailer, which fires on **push**, and therefore before any verification. Say what actually
+   happened instead of claiming the close.
+
+   **This is about honest reporting, not about the session.** See the note below: the issue's
+   open/closed state has no authority over whether you are finished.
 7. **Verify YOUR OWN item landed.** The closer drains the thread; nobody else is told to confirm
    their item was applied. One raised item was acknowledged, implied handled, and not done — the
    line had **moved**, not changed, because a section was inserted above it. **A line moving down
@@ -415,6 +469,21 @@ order were wrong.
 - **Read the project's own docs first.** A coordinator's unread doc becomes three agents' wrong
   belief. One session spent two separate hours re-deriving what was written in the project's memory
   file. In a solo session that costs you; here it propagates.
+
+**When you correct one work item, re-check the items already FINISHED.** A correction does not only
+change what is left to build — it can rot something already done and signed off.
+
+> **The edit that goes stale is not the one you are editing.**
+
+Live example (2026-09-05): a coordinator's correction moved a rationale from one doc to another.
+That was right. But a *completed and verbatim-correct* item still carried a pointer to the doc the
+rationale had just been **deleted from** — so a future reader following it would land somewhere
+that no longer explained anything, which was the exact failure the issue existed to prevent. The
+builder had written that pointer four minutes earlier and never re-read it; the coordinator caught
+it only by reading the working tree while the builder was still typing.
+
+Neither the author of the correction nor the author of the stale line will find it by re-reading
+their own work. **Ask what your correction just made untrue elsewhere.**
 
 ## If you write the spec: numbering is not ordering
 
@@ -693,6 +762,26 @@ A second payoff, observed: the *act* of committing to falsifiable predictions is
 discriminating check. One contradiction surfaced while the predictions were being written, not
 during any review.
 
+**This applies hardest when you hand the check to your HUMAN.** They will report literally what
+they see, and they have none of your context about what a benign failure looks like — so an
+expected-but-alarming result comes back as *"it did not ship."*
+
+Observed (2026-09-05): an agent gave a human a "read the dialog on staging" step with no
+prediction. The human's screenshot showed the **old** copy, which reads as total failure. Cause
+was a cached `index.html` pointing at the previous asset hash — a stale browser, not a bad deploy.
+The agent settled it with one `curl` against the live asset and changed nothing. **Had it written
+*"a stale `index.html` will show the old copy — hard-reload first"* into the instructions, the
+alarm could not have fired.** It then wrote a prediction for the next step, and that one came back
+clean.
+
+**So: alongside every human verification step, state what a benign-but-alarming result looks like
+and what to do about it.** And name the one thing only a screen can show — a render, a layout
+break, mangled accents — because that is the part your own checks structurally cannot reach.
+
+**Do not reach for a redeploy or a cache invalidation to make an alarm go away.** Either would
+appear to fix it, teach you nothing, and destroy the evidence. Run the cheap discriminating check
+first; the same sprint's coordinator declined both and was right.
+
 ### Also: make the alarm impossible before you run the real check
 
 Everything above is reactive. These three are cheap and stop the phantom happening at all — all
@@ -726,6 +815,10 @@ tool. **None** was found by an author re-reading their own words. So do not writ
 as "re-read your claims"; it will underperform. The mechanism is peer review of evidence, and an
 author who goes back voluntarily.
 
+A third sprint held this up and sharpened it: two agents did catch **themselves** — but both did it
+by running a check (listing their own processes, re-reading a command they had just typed), not by
+re-reading a claim. **Self-catching works when a tool answers; it does not work by rereading.**
+
 **Acceptance does not end scrutiny — but bound it:** re-check an accepted claim **when it becomes
 load-bearing for someone else's decision.** One claim was harmless until a coordinator built a
 close plan on it. That trigger is narrow and catches the real case without re-litigating settled
@@ -734,6 +827,23 @@ things every session.
 **When correcting a peer, give the check, not the coordinates.** Line numbers go stale within a
 minute on a live shared tree, and a true claim resting on a citation that no longer resolves gets
 refused — correctly. Quote the text and let the reader grep for it.
+
+**To prove an edit was APPLIED, count the ABSENCE of the old form — not the presence of the new
+one.** Finding the new text proves it exists somewhere; it does **not** prove the old text is gone.
+Both can sit in the same file, and a half-applied edit then reads as a pass.
+
+```
+grep -c 'see docs/framework/right-to-be-forgotten.md'   # 1 — proves nothing on its own
+grep -c 'see right-to-be-forgotten.md'                  # 0 — THIS is the proof
+```
+
+Earned on a comment reflow (2026-09-05), where normalising one citation pushed a sentence across a
+line break — the shape that lets *"a line moving down a file look exactly like a file that
+changed."* Counting the old form going to zero is what closed it.
+
+**Verify from the PUSHED refs, not your working tree.** A correct disk and a wrong remote are
+indistinguishable locally. `git show origin/<branch>:<path> | grep -c …` costs nothing and proves
+what a peer would actually pull.
 
 And when you skip a check on purpose, **say so and say why.** A skipped check and a forgotten
 check look identical in the record. One agent declined to fire a confirming probe because the

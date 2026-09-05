@@ -24,6 +24,8 @@
 #   0  = new mail (printed). Act on it, then run again.
 #   42 = SESSION DONE seen (printed). Stop the loop, sign off, wait for human.
 #   10 = nothing after max_wait. Just run again to keep listening.
+#   3  = REFUSED: a live watcher already holds this watermark. You are still
+#        listening — go read the output of the watcher you already armed.
 #
 # Filtering in watch (text-based, because every agent shares one GitHub login):
 #   - A comment is "for you" if its body contains [<identity>] or [all].
@@ -52,6 +54,15 @@
 #     is in the parser rather than in a rule nobody can follow while pasting
 #     evidence. No positional rule: every genuine close appended the token to a
 #     sign-off, so "own line" would turn a loud false trip into a silent miss.
+#   - ONE watcher per watermark is ENFORCED by a PID lock, not requested by a
+#     rule. All three agents of one sprint double-armed or failed to arm inside
+#     one hour (2026-09-05), two of them minutes after reading an analysis of
+#     someone else doing it. The lock honours only a LIVE PID, so a crashed
+#     poller cannot lock you out permanently — that would convert a harmless
+#     duplicate into total silent deafness, which is worse.
+#   - `init` now SHOUTS that it did not open a channel. It succeeds, prints a
+#     watermark and feels like a finished setup step; an agent that stopped there
+#     was deaf for ten minutes with nothing reporting a problem.
 #   - watch also reports a comment EDITED AFTER YOU SAW IT (via GitHub's
 #     includesCreatedEdit flag). An edited spec used to be invisible: the
 #     watermark only tracks createdAt, so every agent kept building from the
@@ -84,8 +95,84 @@ mkdir -p "$(dirname "$WM_ABS")" 2>/dev/null
 JSON_TMP="${WM_ABS}.comments.json"   # raw fetch
 EDIT_FILE="${WM_ABS}.edits"          # sidecar: id:includesCreatedEdit per comment
 FP_FILE="${WM_ABS}.fp"               # sidecar: id:updated_at per comment (audit)
+LOCK_FILE="${WM_ABS}.pid"            # sidecar: PID of the live watcher on this watermark
 
 echo "watermark file: $WM_ABS"
+
+# --- one watcher per watermark, enforced ------------------------------------
+# WHY THIS IS IN THE MACHINE AND NOT IN A RULE: the rule already existed, in
+# capitals, and ALL THREE agents of one sprint broke it inside one hour
+# (2026-09-05) — two of them minutes after reading a written analysis of someone
+# else breaking it. A rule that three attentive agents violate while looking
+# directly at it is not being ignored; it is unfollowable. So the poller now
+# refuses instead of asking.
+#
+# THE HAZARD THIS MUST NOT CREATE: a lock that outlives a crashed or SIGKILLed
+# poller would refuse to start FOREVER, turning a harmless duplicate delivery
+# into total silent deafness — strictly the worse failure, and exactly the class
+# of defect this whole exercise exists to find. So the lock stores a PID and is
+# only honoured while that process is ALIVE. A stale lock is taken over, loudly.
+# Verified by killing a poller mid-run and confirming the next one starts.
+acquire_lock() {
+  if [ -f "$LOCK_FILE" ]; then
+    OLD_PID="$(cat "$LOCK_FILE" 2>/dev/null || echo "")"
+    case "$OLD_PID" in
+      ''|*[!0-9]*) OLD_PID="" ;;   # empty or not a number -> treat as stale
+    esac
+    # A live PID is NOT enough. PIDs are recycled, so a dead poller's number can
+    # be reused by an unrelated long-running process — and then the lock would
+    # refuse forever, which is the permanent-deafness failure this design exists
+    # to avoid. Confirm the live process is actually a poller before honouring it.
+    OLD_CMD=""
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+      OLD_CMD="$(ps -p "$OLD_PID" -o command= 2>/dev/null || echo "")"
+      case "$OLD_CMD" in
+        *poll-issue.sh*) : ;;                    # genuinely one of ours
+        *) echo "NOTE: PID $OLD_PID is alive but is NOT a poller (recycled PID)."
+           echo "      Ignoring the lock rather than refusing forever."
+           OLD_PID="" ;;
+      esac
+    fi
+    if [ -n "$OLD_PID" ] && [ "$OLD_PID" != "$$" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+      echo "########################################################################"
+      echo "## REFUSING TO START — A WATCHER IS ALREADY LIVE ON THIS WATERMARK."
+      echo "##"
+      echo "## live PID: $OLD_PID     this PID: $$"
+      echo "## watermark: $WM_ABS"
+      echo "##"
+      echo "## Two watchers on one watermark race to consume the same comments."
+      echo "## Whichever output you do not read is mail you never saw."
+      echo "##"
+      echo "## YOU ARE STILL LISTENING. Do nothing new — go read the output of the"
+      echo "## watcher you already armed. It is the one that will deliver your mail."
+      echo "##"
+      echo "## Only if you are certain that watcher is gone:"
+      echo "##   kill $OLD_PID   # then run this command again"
+      echo "########################################################################"
+      exit 3
+    fi
+    if [ -n "$OLD_PID" ]; then
+      echo "NOTE: took over a STALE lock from dead PID $OLD_PID (crashed or killed)."
+    else
+      echo "NOTE: took over an unreadable lock file (no valid PID inside)."
+    fi
+  fi
+  echo "$$" > "$LOCK_FILE"
+  # Release on ANY exit — normal, error, or signal. Without the signal traps a
+  # SIGTERMed poller leaves the lock behind and the takeover path has to do the
+  # work; with them the common case is clean.
+  trap 'release_lock' EXIT
+  trap 'release_lock; exit 143' TERM
+  trap 'release_lock; exit 130' INT
+}
+
+release_lock() {
+  # Only remove a lock that is still OURS. A takeover by another process must
+  # not be undone by our own exit.
+  if [ -f "$LOCK_FILE" ] && [ "$(cat "$LOCK_FILE" 2>/dev/null || echo "")" = "$$" ]; then
+    rm -f "$LOCK_FILE"
+  fi
+}
 
 # --- fetch helpers -----------------------------------------------------------
 # Fetch comments as raw JSON into $JSON_TMP. Always leaves a valid JSON doc
@@ -130,9 +217,32 @@ if [ "$MODE" = "init" ]; then
   write_edit_sidecar
   echo "watermark set to: ${NEWEST:-<none, empty issue>}"
   echo
-  echo "NOTE: pass this SAME absolute path to every later watch call."
-  echo "      A relative path follows your cwd, and cwd persists between Bash"
-  echo "      calls — one 'cd' would orphan this watermark and silently drop mail."
+  # WHY THIS BANNER: `init` succeeds, prints a watermark, and FEELS like a
+  # completed setup step — so an agent can believe it is now on the channel when
+  # it is not listening at all. That happened (2026-09-05): an agent ran init,
+  # went heads-down for ten minutes, and a spec correction addressed straight to
+  # it could not arrive. Nothing errored. The watermark file on disk looked
+  # perfectly healthy, which is why the thread could not show it.
+  # In its own words: "init felt like setup done."
+  echo "########################################################################"
+  echo "## YOU ARE NOT LISTENING YET. init ONLY set a watermark."
+  echo "##"
+  echo "## init stamps a starting point so you do not replay history. It opens"
+  echo "## no channel and it delivers nothing. Mail addressed to [$IDENTITY]"
+  echo "## right now would reach nobody, and NOTHING WOULD REPORT A PROBLEM."
+  echo "##"
+  echo "## ARM THE WATCHER NOW, as its own backgrounded call:"
+  echo "##"
+  echo "##   poll-issue.sh watch $ISSUE $IDENTITY $REPO \\"
+  echo "##     $WM_ABS"
+  echo "##"
+  echo "## Pass that SAME ABSOLUTE path every time. A relative path follows your"
+  echo "## cwd, and cwd persists between Bash calls — one 'cd' orphans this"
+  echo "## watermark and silently drops mail."
+  echo "##"
+  echo "## Then READ ITS OUTPUT. The output IS the mail. A watcher whose output"
+  echo "## nobody reads has delivered nothing."
+  echo "########################################################################"
   exit 0
 fi
 
@@ -159,6 +269,11 @@ if [ "$MODE" != "watch" ] && [ "$MODE" != "audit" ]; then
   echo "unknown mode: $MODE (use init, peek, watch or audit)" >&2
   exit 2
 fi
+
+# Only the long-blocking modes take the lock. `init` and `peek` are one-shot and
+# consume nothing, so they must never be blocked by a healthy watcher — `peek` in
+# particular is the recovery tool you reach for WHILE a watcher is armed.
+acquire_lock
 
 # =============================================================================
 # audit — return EVERY new or edited comment (observer role)

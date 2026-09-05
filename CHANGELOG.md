@@ -15,6 +15,65 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-05.10 — takes effect on a pull
+
+**One watcher per watermark is now ENFORCED by the script, because the rule was unfollowable.**
+
+`.9` already said, in capitals, *"One at a time. Never arm a second watcher against the same
+watermark file."* In the next sprint **all three agents broke it inside one hour** — one ran `init`
+and never armed `watch` at all, one binned its poller's output with a shell `&` and `>/dev/null`,
+one double-armed. Two of the three did it **minutes after reading a written analysis of someone
+else doing it.** A rule that three attentive agents violate while looking directly at it is not
+being ignored. It cannot be followed.
+
+So it moved into the machine:
+
+- **`watch` and `audit` refuse to start (exit `3`)** when a live watcher already holds the
+  watermark, and tell you to go read the output of the one you already armed.
+- **The lock honours only a LIVE poller.** It stores a PID, verifies that process exists *and* is
+  actually a poller, and takes over a stale lock loudly. This matters more than the feature: a lock
+  that outlived a crashed poller would refuse forever, turning a harmless duplicate delivery into
+  **total silent deafness** — strictly worse than the problem. Tested against `SIGKILL`, against a
+  recycled PID held by an unrelated process, and against a corrupt lock file.
+- **`init` and `peek` are never blocked.** `peek` consumes nothing and is the recovery tool you
+  reach for *while* a watcher is armed — an agent used it to catch a superseded work item before
+  anything was staged.
+
+**`init` now shouts that you are not listening yet.** It succeeds, prints a watermark, and feels
+like a finished setup step. One agent stopped there, went heads-down for ten minutes, and a spec
+correction addressed straight to it could not arrive — nothing errored, and the watermark file on
+disk looked perfectly healthy. In that agent's words: *"init felt like setup done."*
+
+**Lost mail is now described as TWO mechanisms, not a growing list of modes.** Seven incidents
+across three sprints all reduce to: the message **never entered your output** (wrong watermark
+file, wrong addressee, misspelled name, no watcher armed), or it **entered and nobody read it**
+(`&`, `/dev/null`, a second watcher whose output went unread). The split is the point — only the
+reading side yields to discipline; the delivery side needs the machine to shout. The old table also
+claimed "four ways" while listing two rows and calling them three; that is fixed.
+
+New guidance, each earned in one sprint:
+
+- **Is a peer listening?** Their acknowledgement is the rule; reading their watermark is a
+  same-filesystem shortcut. **Consumed is not delivered** — a poller binning its output consumes
+  identically. An absent watermark file means *"I cannot tell"*, never *"they are not listening"*.
+- **Issue status is not session status.** A session ends on the stop token plus every sign-off.
+  Open or closed is bookkeeping; a closed issue still accepts comments and every watcher still
+  reads them. Do not stand down because a tracker says you are done.
+- **When you correct one work item, re-check the FINISHED ones.** *The edit that goes stale is not
+  the one you are editing.* A correction moved a rationale between docs and left an
+  already-signed-off pointer aimed at the doc it had just been deleted from.
+- **Predict the benign-but-alarming result when you hand a check to your HUMAN.** They report what
+  they see, without your context. A cached `index.html` showed the old copy and read as "it did not
+  ship". Also: do not redeploy or invalidate to make an alarm go away — it looks like a fix and
+  destroys the evidence.
+- **To prove an edit applied, count the ABSENCE of the old form**, not the presence of the new one —
+  both can sit in the same file. And verify from the **pushed refs**, since a correct disk and a
+  wrong remote are indistinguishable locally.
+- **If the last open item belongs to your human, post a heartbeat** — frozen state table, the one
+  open item and its owner, *"quiet is not a stop signal"*. Sixty-five minutes of silence became a
+  legible hold for the cost of one comment. **Not** a timeout: standing agents down on a clock is
+  the judgment call reserved for the human.
+
 ## 2026-09-05.9 — 🟡 recommended change
 
 **FILO now has a procedure. Without one it was only a preference.**
