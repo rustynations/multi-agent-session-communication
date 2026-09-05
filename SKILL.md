@@ -2,6 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
+<!-- Version: 2026-09-04.1 -->
 
 # Multi-Agent Session
 
@@ -28,13 +29,18 @@ not guess an identity. Do not guess the issue.
 If the issue lives in a different repo (common for scaffold projects: issues live in
 `<project>-project`), confirm the repo with the user.
 
-## The five golden rules
+## The six golden rules
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
 2. **Address** every comment — name who it is for: `@DocWriter` or `@all`.
 3. **Watermark** — never re-read old comments. The poll script tracks this for you.
 4. **Act only if it is for you AND needs action.** A plain "ok / thanks" ends the chain. Reply to it and you start an echo loop. Silence is allowed.
 5. **Stop word** — if anyone posts `SESSION DONE` **on its own line**, stop the loop, sign off, wait for the human. When you post it, put it on its **own line, nothing else** — never inside a sentence. (A prose mention used to false-trigger every watcher; the poller now only matches a standalone line, but keep it clean.)
+6. **Never use `SendMessage`.** The issue is the only channel — no wire between
+   terminals. Direct session-to-session messages leave **no record**: your human cannot
+   read them, a restarted agent cannot recover them, and an agent that is not on this
+   machine never sees them. If you cannot get a response from an agent you need, post
+   the blocker on the thread **and** ask your human. Do not route around the bus.
 
 Ignore your own comments. Frank never acts on Frank.
 
@@ -190,6 +196,7 @@ Then go back to Step 4. That loop IS the session.
 | Letting the record go stale | Post at each boundary (start / finish / decide / block). The thread is the source of truth. |
 | Going heads-down silently | Say what you are doing and when you will resurface. Silence reads as stalled. |
 | Asking the human out-of-band | Need the human? Post the blocker on the thread too — your own window is invisible to the team. |
+| Reaching a peer with `SendMessage` | The issue is the only channel. No answer from someone? Post the blocker on the thread AND ask your human. |
 | Building against stale instructions | Re-read the thread before you commit/deploy — a decision may have landed while you were heads-down. |
 | `git add -A` on a shared tree | Commit only your own paths (`git add <files>`). A broad add captures a peer's in-flight work and may push it early. |
 | Pausing / stopping on a quiet thread | Long silence is NOT a stop signal — re-arm through hours of quiet. You stop only on `SESSION DONE` or the human. |
