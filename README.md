@@ -17,6 +17,10 @@ and a human is just another voice on the thread.
 
 - **`SKILL.md`** — the instructions the agent follows (loaded by Claude Code). Written for the
   agent, not for you.
+- **`CHANGELOG.md`** — what changed in each version, and **whether it needs anything from you**.
+  Read it after a `git pull`: entries marked 🔴 ACTION REQUIRED mean a habit to change, not just
+  new code. Versions match the `<!-- Version: -->` comment at the top of `SKILL.md`, so you can
+  see which release your copy is on.
 - **`poll-issue.sh`** — the "radio." A blocking poller with four modes:
   - `init  <issue> <identity> <repo> <watermark_file>` — mark existing comments as seen.
   - `peek  <issue> <identity> <repo> <watermark_file> [count]` — print the recent thread
