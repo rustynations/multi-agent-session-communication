@@ -17,8 +17,8 @@ or a running session to correct. Everything else takes effect on its own.
 
 ## 2026-09-06.1 — takes effect on a pull
 
-**The skill got shorter for the first time.** A debrief added 24 rules and the file still lost
-lines, because four blocks of accumulated justification came out and every new rule ships as its
+**A debrief left the skill SHORTER for the first time.** It added 24 rules and the file still
+lost lines, because four blocks of accumulated justification came out and every new rule ships as its
 imperative alone.
 
 Three governance rules now bind every future debrief:
