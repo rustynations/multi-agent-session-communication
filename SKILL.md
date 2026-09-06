@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-05.11 -->
+<!-- Version: 2026-09-06.1 -->
 
 # Multi-Agent Session
 
@@ -36,24 +36,10 @@ name that looks like your human's handle usually belongs to **a different real p
 so the mention points at a stranger. (Caveat: when the agents post under the human's own account, GitHub sends no
 notification — you cannot notify yourself. The `@$HUMAN` is for the record, so a human
 scanning the thread can see which lines are theirs to answer. It becomes a real alert
-only if the agents post under a separate account.)
+only if the agents post under a separate account.) What follows from that is under
+**Working with your human**.
 
-> **So an `@$HUMAN` ask is INVISIBLE, and that is dangerous.** You post a blocker, the human
-> is never told, and to anyone glancing at the thread you simply look busy. An agent can wait
-> like that indefinitely.
->
-> When you genuinely need the human:
-> 1. **Post the ask on the thread** — that is the record, and a peer may answer it.
-> 2. **Also say it in your own window as plain text** — a short, visible "I am blocked on X,
->    I need you to decide Y." Not a prompt: **never `AskUserQuestion`** (rule 7), because that
->    stops you polling and the answer may already be on its way.
-> 3. **Go back to `watch`** and keep listening while you wait.
->
-> If you are the human's *only* live agent and nothing moves, that is your human's cue to
-> check the thread. Consider naming the wait explicitly: *"holding on @$HUMAN; nobody else
-> can unblock this."*
-
-## The seven golden rules
+## The eight golden rules
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
 2. **Address** every comment — name who it is for in **square brackets**: `[DocWriter]`
@@ -63,60 +49,20 @@ only if the agents post under a separate account.)
    help; those are taken too). `[Builder]` belongs to no namespace, so it never collides.
 3. **Watermark** — never re-read old comments. The poll script tracks this for you.
 4. **Act only if it is for you AND needs action.** A plain "ok / thanks" ends the chain. Reply to it and you start an echo loop. Silence is allowed.
-5. **Stop word** — the signal is **`[SESSION DONE]`**, in brackets, and it is matched **anywhere**
-   in a comment. When you see one: stop the loop, sign off, wait for the human. Brackets are
-   already the signal namespace, so a bracketed stop can never be mistaken for prose.
-   - **To end a session:** post `[SESSION DONE]`. Position does not matter.
-   - **To talk ABOUT the stop word:** write it **without** brackets — `SESSION DONE` inside a
-     sentence does not trigger. Writing the bracketed form in prose **will** stop everyone,
-     the same way a stray `@handle` pings a stranger.
-   - **Quoting it is now safe.** The matcher ignores anything markdown renders as code or quoted
-     text — fences, inline code, blockquotes, indented blocks. The token tripped watchers **five
-     times** across two sprints and *every* trip was a quote, while every real close was bare
-     prose. Pasting raw evidence verbatim is the rigorous instinct, so this is fixed in the parser,
-     not by asking you to be careful. **Typing it bare in prose is still a live wire** — that is a
-     choice, not an instinct, so it stays your job.
-   - **There is no positional rule, on purpose.** Every genuine close appended the token to a
-     sign-off. "Own line" or "start of comment" would turn a loud false trip into a **silent
-     miss** — and rule 1 requires comments to start with `IDENTITY:`, so a start-anchored token
-     could only fire from a comment that breaks rule 1.
-   - **The old form no longer works.** A bare `SESSION DONE` on its own line used to trigger a
-     stop. It does not any more — but `watch` **shouts** when it sees one, because a live session
-     holds the old skill text in its context even after the repo updates, so an agent can emit the
-     old form believing it ended the session. Never a silent no-op.
+5. **Stop word** — post `[SESSION DONE]` to end a session; it is matched anywhere in a comment.
+   **Typing it bare in prose is a live wire.** Write it unbracketed to discuss it; quoting is safe —
+   the parser strips code spans, fences, blockquotes and indented blocks.
 6. **Never use `SendMessage`.** The issue is the only channel — no wire between
    terminals. Direct session-to-session messages leave **no record**: your human cannot
    read them, a restarted agent cannot recover them, and an agent that is not on this
    machine never sees them. If you cannot get a response from an agent you need, post
    the blocker on the thread addressed to `@$HUMAN` **and** ask your human in your own
    window. Do not route around the bus.
-7. **Run the watcher in the BACKGROUND, via your harness's background flag.** This is the
-   structural fix that makes the rest of the loop safe, so it is a rule rather than a tip.
-   Requirements, all three learned the hard way — three agents found three different ways to
-   break this in one sprint (2026-09-05):
-   - **Its own tool call.** Never folded into a compound command.
-   - **Read the output every time.** The output IS the mail. A shell `&` or a `>/dev/null`
-     detaches the poller: it still collects your mail and still advances your watermark, then
-     bins it. No error, nothing wrong on the thread, and you look busy.
-   - **One at a time.** Never arm a second watcher against the same watermark file.
-
-   **Consequence — do not block on a prompt while watching.** `AskUserQuestion` (or anything that
-   waits for a person) freezes a FOREGROUND session, so you stop polling while the thread still
-   says you are watching. An agent did this, posted *"Parked, watching"*, and sat frozen while the
-   coordinator's answer landed 55 seconds later. Backgrounding removes the hazard; the ban is the
-   seatbelt for when you have not. The one exception is the FIRST agent's alignment with the human
-   before its first `watch` — nobody expects you on the bus yet.
-
-   **Self-check, because a rule you just read will not stop you but a number will:**
-   ```
-   cat "$WM"          # what has been consumed
-   ```
-   A watermark **ahead** of the newest comment you have actually read proves something was
-   delivered and discarded. Recover with `peek`, then say on the thread that you lost mail.
-
-Rules 6 and 7 guard the same thing from two sides. `SendMessage` leaves **no record**; a detached
-or blocked watcher leaves you **deaf**. Both route around the bus, and the bus is the only thing
-every agent can hear.
+7. **Arm the watcher as its own tool call** — never joined to another command — **and read its output.**
+   **Background it via your harness's flag, never a shell `&`.**
+   **A notification present anywhere in a turn means the turn is not over until you have armed and read.**
+8. **A structured question tool is allowed** — but never while your only watcher is in the
+   foreground, and never as a second outstanding ask. Both conditions are required.
 
 Ignore your own comments. Frank never acts on Frank.
 
@@ -163,6 +109,9 @@ For those, require the decision **firsthand from whoever owns it**, and say so p
 one-way action once too often is much cheaper than releasing it once too early. When an agent
 does hold on you for this reason, **say it was the right call** — you want that instinct kept.
 
+**Before escalating, split decide-from-execute and escalate only the half you cannot do.** Name the
+class you are asking for: **credentials, scope and money are your human's; work-order judgement is the coordinator's.**
+
 And check the shape of the action before you gate it. A push that a pipeline turns into a
 **live deploy** is not a staged artifact awaiting a separate step; it IS the deploy. Read the
 pipeline's source-branch config rather than assuming there is another gate after yours.
@@ -175,14 +124,18 @@ working — do NOT wait for a reply — when any of these happen:
 
 - You **start** a distinct piece of work, or **change your plan.**
 - You **finish** a unit of work — a commit, a deploy, a verification — with the **raw evidence**, not just "done."
-- You **make or change a decision.**
+- You **make or change a decision that diverges from what a peer proposed.**
+- **Agreement that changes a row is silent; agreement that changes only a belief needs one line.**
+  Silence-as-consent is otherwise indistinguishable from deafness.
 - You hit a **blocker — including needing the human** (expired login, a decision, a manual
   check, a permission refusal), hand off, or **stand down.** Post it on the thread — addressed
   to `@$HUMAN` when it is the human you need — even if you also mention it in your own window:
   an out-of-band ask is invisible to the team, and the thread just looks like you are working.
-  Then **go back to `watch` immediately.** Do not stop and wait on a prompt (rule 7), and do not
+  Then **go back to `watch` immediately.** Keep any prompt inside rule 8, and do not
   assume only the human can unblock you: state the blocker, offer the options you can see, and a
   **peer** will often answer it before the human ever reads the thread.
+  **If the owner is unreachable: decide it yourself and say so when reversible, or re-address it
+  when it belongs to a different owner. Do not park.**
 - You are about to go **heads-down** for a while — say what you are doing and roughly when
   you will resurface. While working you cannot hear the channel, so a labeled pause beats
   ambiguous silence.
@@ -198,9 +151,62 @@ was buried in volume** — every endgame failure was downstream of a thread nobo
 **Bound the narrative, not the evidence:** a file-and-line trace earns its length; the paragraphs
 around it do not.
 
+**One ledger comment, owned by the GATE-HOLDER — not the coordinator, who is likeliest to go deaf —
+edited in place: `item → owner → state`.** Comments carry new information; restating state is an edit.
+
+**`peek` before posting anything long, or any correction or objection about a peer's comment.** A
+long comment's premise expires mid-draft; if your point is already there, its value is zero.
+
+**A retraction is one line plus the corrected claim.** No re-litigation, no restating the chain,
+and no tally of who caught it.
+
 These are boundaries, not chatter — that is the "record, not noise" line. Do not narrate
 every step; do mark every turn. A current thread also keeps watchers awake: they wake on
 your updates instead of timing out on dead air.
+
+## Working with your human
+
+- **One outstanding ask: a single action with a single expected result.** Two halves means two
+  owners and two states — ask which half the *reason* applies to.
+- **Ask for the raw artifact, never a verdict.** One wide artifact beats several narrow ones, and
+  exact wording verbatim beats any paraphrase.
+- **Never let your human's fatigue decide what counts as verified.** State the gap, offer the
+  waiver explicitly, record whichever they choose — **scaling scope down is theirs.**
+
+> **An `@$HUMAN` ask is INVISIBLE, and that is dangerous.** You post a blocker, the human
+> is never told, and to anyone glancing at the thread you simply look busy. An agent can wait
+> like that indefinitely.
+>
+> When you genuinely need the human:
+> 1. **Post the ask on the thread** — that is the record, and a peer may answer it.
+> 2. **Also say it in your own window as plain text** — a short, visible "I am blocked on X,
+>    I need you to decide Y." Rule 8 bounds the modal form, and the answer may already be on its way.
+> 3. **Go back to `watch`** and keep listening while you wait.
+>
+> If you are the human's *only* live agent and nothing moves, that is your human's cue to
+> check the thread. Consider naming the wait explicitly: *"holding on @$HUMAN; nobody else
+> can unblock this."*
+
+### If the last open item belongs to your human, post a heartbeat
+
+**Make the silence legible instead of ambiguous.** When everything is built, pushed and verified
+and the only thing left needs a person, a long quiet stretch is indistinguishable from a deadlock
+to anyone reading the thread — including the human, who may not know they are the blocker.
+
+After a stretch of quiet, the coordinator posts one comment:
+
+- **the state table, frozen** — every item and where its evidence is
+- **the one open item, and who owns it** — by name
+- **that nothing is degrading and nothing needs re-running**
+- **"quiet is not a stop signal"**
+- **that the other agents are not being waited on**, and an offer to record a stand-down if one
+  needs to stop before the close
+
+Then keep watching. One heartbeat turns "is this dead?" into a legible hold, for one comment.
+
+**Do not build a timeout instead.** A timeout stands agents down on a clock, which is exactly the
+judgment call reserved for the human. A heartbeat is cheaper and it removes the ambiguity that
+made a timeout look attractive.
 
 ## Re-check before you commit
 
@@ -234,6 +240,10 @@ the split matters because **only one of them yields to being careful:**
 
 **Neither side errors, and the sender gets no feedback either way.** That is why an absence has
 to be actively looked for.
+
+**Confirm the loss before recovering from it.** Name the message and show it in `peek` first —
+the diagnostic is non-destructive, the remedy is not. Then rewind to just before it and **re-send
+the FULL original**, never the trigger word alone.
 
 **A rule you break while looking at it belongs in the machine.** All three agents of one sprint
 broke the one-watcher rule inside an hour — two of them minutes after reading a written analysis
@@ -273,25 +283,9 @@ ls -la "$HOME/.claude/mas-state/" | grep "$ISSUE"   # TWO files for one agent = 
 > ```
 > `watch` and `peek` are safe — `gh issue view --json comments` paginates internally — and
 > `audit` passes `--paginate` explicitly. **Only your ad-hoc commands are exposed.**
-
-Two watermark files for the same agent and issue is proof. Compare their values against the
-timestamp of the message that seems to have vanished — a message dated **between** them was
-swallowed.
-
-**Recover it — three rules, in order:**
-
-1. **Rewind the watermark. Do not carry the broken value forward.** The tempting fix is to
-   copy the newer file to the correct path. That keeps the value that caused the loss, so the
-   message stays unreachable. Set the watermark to just **before** the lost message instead:
-   ```
-   echo "2026-09-05T15:25:00Z" > "$WM"   # one second before the lost comment
-   ```
-2. **Re-send the FULL message, not just the trigger.** A lost `[BUILDER] go` almost never
-   carries only the word "go" — it carries decisions, bounds, and clarifications that rode
-   along with it. Re-posting a bare "go" hands the work back with **every instruction
-   stripped out, and nobody can tell what is missing.** Copy the original body verbatim.
-3. **Say it on the thread.** Name what was lost and that it was lost, not withheld. An agent
-   that missed a message did nothing wrong, and the record needs to show why the gap exists.
+>
+> **And `--paginate --jq 'max_by(…)'` applies the filter PER PAGE**, so a single-value aggregate
+> returns one answer per page. Collect to a file, then `jq`.
 
 **Verify before you accuse.** Read the two watermark files and the message timestamp yourself,
 even if a peer hands you the diagnosis. Same rule as any alarming result: cheapest
@@ -306,7 +300,10 @@ working tree — so be careful what you commit:
   a broad add sweeps a peer's **uncommitted, maybe half-finished** work into your commit and can
   push it to a shared branch before it is ready.
 - A pushed shared-branch commit is **hard to reverse.** If a mix-up happens, flag it on the
-  thread and let the human decide — do **not** force-push or rewrite shared history on your own.
+  thread and let the human decide — do **not** force-push or rewrite shared history on your own,
+  and **supersede a commit rather than amend it** while a peer is reading the tree.
+- **A measurement from a shared tree must record the tree's state.** A before-shot taken from a
+  moving tree is a claim that needs its own evidence.
 
 - **Pushing a branch you do not have checked out leaves your LOCAL ref stale.** Promoting with
   `git push origin <sha>:main` while standing on another branch updates the remote and
@@ -337,28 +334,6 @@ to. Nothing else. Not one hour of quiet, not several, not a hunch that "it looks
 
 If you genuinely think the session should end, that is the human's call — ask on the thread
 and wait. Do not pause or stand down on your own judgment.
-
-### If the last open item belongs to your human, post a heartbeat
-
-**Make the silence legible instead of ambiguous.** When everything is built, pushed and verified
-and the only thing left needs a person, a long quiet stretch is indistinguishable from a deadlock
-to anyone reading the thread — including the human, who may not know they are the blocker.
-
-After a stretch of quiet, the coordinator posts one comment:
-
-- **the state table, frozen** — every item and where its evidence is
-- **the one open item, and who owns it** — by name
-- **that nothing is degrading and nothing needs re-running**
-- **"quiet is not a stop signal"**
-- **that the other agents are not being waited on**, and an offer to record a stand-down if one
-  needs to stop before the close
-
-Then keep watching. Observed working (2026-09-05): 65 minutes of quiet while a human was away, and
-one heartbeat turned "is this dead?" into a legible hold — costing one comment.
-
-**Do not build a timeout instead.** A timeout stands agents down on a clock, which is exactly the
-judgment call the rule above reserves for the human. A heartbeat is cheaper and it removes the
-ambiguity that made a timeout look attractive.
 
 ## Closing the session — drain the thread first
 
@@ -416,7 +391,9 @@ Neither could be absorbed. So, before you close:
       gh api "repos/$REPO/issues/$ISSUE/comments" --paginate -q '.[].body' \
         | grep -oE '^[A-Za-z][A-Za-z0-9_-]*:' | tr -d ':' | sort -u
       ```
-   3. **Wait for every agent on that roster to sign off, and CHECK — do not assume.** Silence is
+   3. **Wait for every agent on that roster to sign off, and CHECK — do not assume.**
+      **Poll with `peek`, matching one signature per roster name — not `watch`,** which returns
+      only mail addressed to you, and a sign-off is addressed to nobody. Silence is
       not consent. A missing sign-off can mean a dead session, a watcher whose output was
       discarded, or an agent that never received the release at all.
    4. **If someone has not signed off after about one watch cycle, tell your human** — name who is
@@ -442,6 +419,8 @@ Neither could be absorbed. So, before you close:
    their item was applied. One raised item was acknowledged, implied handled, and not done — the
    line had **moved**, not changed, because a section was inserted above it. **A line moving down
    a file looks exactly like a file that changed.** One command.
+8. **Verify that each peer's tick still applies to the artifact it ticked**, and that the
+   independent confirmation named at setup exists.
 
 ## Rejoining after you have stopped
 
@@ -470,8 +449,9 @@ order were wrong.
   belief. One session spent two separate hours re-deriving what was written in the project's memory
   file. In a solo session that costs you; here it propagates.
 
-**When you correct one work item, re-check the items already FINISHED.** A correction does not only
-change what is left to build — it can rot something already done and signed off.
+**When you correct one work item, re-check the work items already FINISHED — and any verification
+record citing them.** A correction can rot something already done and signed off, and a tick can be
+invalidated by a peer's later commit to the artifact you ticked.
 
 > **The edit that goes stale is not the one you are editing.**
 
@@ -497,6 +477,9 @@ A reviewer had to stop and ask which came first (2026-09-05).
 gate → push → green AND propagated → W5 verification → W6 pentest → close
 ```
 
+**A criterion containing "and" is written as two ids at authoring time**, before anything can be
+ticked against it. Splitting it at tick time requires noticing, and noticing is what fails.
+
 ## Start-up: align before you watch
 
 First, work out whether you are the **first** agent or a **later** one — read the issue and
@@ -510,7 +493,16 @@ into announcing, deciding, or polling.
 1. **Read the issue** and form your understanding.
 2. **Sync with the human** in your own session — cover BOTH: **the issue** (understanding,
    gaps, any product/scope decision it needs) AND **the sprint shape** (how many agents, their
-   roles, how the work breaks up).
+   roles, how the work breaks up). Settle these five, then publish them on the thread:
+   - **Name who issues asks to the human, beside naming the pusher.** Exactly one agent issues
+     asks; every other reports state freely and names who to take instructions from.
+   - **Tell the human they are the most reliable detector of a stalled agent:** *"if an agent's
+     window is quiet and the thread has moved, say so."*
+   - **Scope every role boundary by its consequence, not by a branch name, and state what it does
+     NOT cover.** One designated actor for anything that deploys or is outward-facing.
+   - **If one agent both verifies and ships, name who independently confirms at least one criterion.**
+   - **Publish the ledger and the close sequence now** — shapes are under **Keep the record
+     current** and **Closing the session**.
 3. **Wait for the go.** Do not announce, post a decision, or start `watch` until the human is
    happy and explicitly tells you to start.
 4. **Hand the trigger back:** *"say the word and I'll announce and start watching."*
@@ -546,8 +538,8 @@ nothing about the issue. Three differences from a working agent:
 
 ## Workflow
 
-Set variables once. **The watermark path must be ABSOLUTE and cwd-independent** —
-see the warning right below, it has already deadlocked a real sprint:
+Set variables once. **The watermark path must be ABSOLUTE and cwd-independent** — Bash cwd
+persists between tool calls, so one `cd` orphans a relative watermark and mail vanishes silently:
 
 ```
 ISSUE=42
@@ -560,26 +552,6 @@ POLL=~/.claude/skills/multi-agent-session/poll-issue.sh
 mkdir -p "$HOME/.claude/mas-state"
 WM="$HOME/.claude/mas-state/$(printf '%s' "$REPO" | tr '/' '-')-${ISSUE}-${ME}.txt"
 ```
-
-> ### ⚠️ NEVER use a relative watermark path
->
-> **Bash cwd PERSISTS between tool calls in Claude Code.** A relative path like
-> `tmp/mas-watermark-...` follows your cwd, so **one `cd` into a subdirectory points
-> the same argument at a different, empty file.** An empty watermark baselines to the
-> newest comment — so every message waiting for you is **silently swallowed. No error.
-> No warning.**
->
-> This is not hypothetical. On 2026-09-05 a BUILDER agent ran `init` from the project
-> root, then `cd`-ed into a component repo to read code. Its next `watch` created a
-> second watermark file and jumped straight past the `[BUILDER] go` that had landed in
-> between. BUILDER waited forever for a go it had already been sent, the coordinator
-> believed BUILDER was building, and the reviewer waited on BUILDER. **All three agents
-> stopped**, and nothing on the thread showed anything was wrong.
->
-> `$HOME/.claude/mas-state/` is used above **on purpose**, over the usual project
-> `tmp/`: it cannot move when you `cd`, and it survives a session restart from a
-> different directory. Every `init` / `peek` / `watch` call must pass the **same**
-> absolute path.
 
 **Step 1 — mark history as seen** (so you do not reprocess old comments):
 
@@ -721,7 +693,7 @@ Then go back to Step 4. That loop IS the session.
 | **Backgrounding with `&` or redirecting the output** | The poller consumes your mail, advances the watermark and bins it — silently. Use the harness's background flag; the output IS the mail. |
 | Not checking your own watermark | `cat "$WM"`. A watermark AHEAD of the newest comment you actually read proves mail was consumed and discarded. |
 | Auditing with `watch` | `watch` returns only mail addressed to you and **discards** everything else. An observer needs `audit`, which returns all traffic. |
-| **Asking with `AskUserQuestion`** | It freezes your session, so you stop polling while the thread still says you are watching. Post the ask on the thread and go back to `watch`. |
+| **A modal ask while your only watcher is in the foreground** | It freezes your session, so you stop polling while the thread still says you are watching. Background the watcher first, and never carry two outstanding asks (rule 8). |
 | Posting "parked, watching" and then not watching | If you are not in `watch`, do not claim you are. A false status is worse than silence — it stops peers looking for the problem. |
 | Assuming only the human can unblock you | State the blocker with the options you can see. A peer often answers before the human reads the thread. |
 | Escalating without re-reading | `peek` first. The answer may already be on the thread — and a permission refusal may be blocking a step you do not actually need. |
@@ -835,18 +807,13 @@ things every session.
 minute on a live shared tree, and a true claim resting on a citation that no longer resolves gets
 refused — correctly. Quote the text and let the reader grep for it.
 
-**To prove an edit was APPLIED, count the ABSENCE of the old form — not the presence of the new
-one.** Finding the new text proves it exists somewhere; it does **not** prove the old text is gone.
-Both can sit in the same file, and a half-applied edit then reads as a pass.
+**Prove a check can FIRE before you trust it to say something is clean.** Its commonest form: to
+prove an edit was applied, count the **absence of the old form**, not the presence of the new one.
 
 ```
 grep -c 'see docs/framework/right-to-be-forgotten.md'   # 1 — proves nothing on its own
 grep -c 'see right-to-be-forgotten.md'                  # 0 — THIS is the proof
 ```
-
-Earned on a comment reflow (2026-09-05), where normalising one citation pushed a sentence across a
-line break — the shape that lets *"a line moving down a file look exactly like a file that
-changed."* Counting the old form going to zero is what closed it.
 
 **Verify from the PUSHED refs, not your working tree.** A correct disk and a wrong remote are
 indistinguishable locally. `git show origin/<branch>:<path> | grep -c …` costs nothing and proves
