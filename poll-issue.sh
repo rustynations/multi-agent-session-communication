@@ -447,8 +447,18 @@ while :; do
       ' "$JSON_TMP" 2>/dev/null || echo "")"
     fi
   fi
-  # Sidecar always catches up, so an edit is reported once, not every tick.
-  write_edit_sidecar
+  # NEVER ADVANCE THE SIDECAR BEFORE THE EDIT HAS BEEN PRINTED.
+  # The sidecar catches up so an edit is reported once, not every tick — but it
+  # is also the ONLY record that the edit was reported. Advancing it here, above
+  # the print, made this an at-most-once delivery: the poller can die between the
+  # two (the harness reaps a backgrounded task under memory pressure, and it does
+  # not count memory the way `free -h` does, so it fires with the machine looking
+  # idle). The flag was consumed, the notice was never printed, and no later call
+  # could re-derive it. That is a silent loss with the agent behaving correctly.
+  # So: catch up NOW only when there is nothing to deliver, and otherwise catch up
+  # on the path that has just printed it. An unadvanced sidecar costs one repeat
+  # report; an advanced one costs the message.
+  [ -z "$EDITED_OUT" ] && write_edit_sidecar
 
   if [ "$COUNT" -gt 0 ]; then
     NEWEST="$(printf '%s' "$NEW" | jq -r 'max_by(.createdAt) | .createdAt' 2>/dev/null || echo "")"
@@ -549,6 +559,8 @@ while :; do
       printf '%s' "$MAIL" | jq -r '.[] | "[" + .createdAt + "]\n" + .body + "\n"'
       echo "--- read ALL of the above before you act: a single batch can hold"
       echo "--- several messages, and the later one may change the earlier one."
+      # Delivered. Record it AFTER the print, never before — see the sidecar note above.
+      write_edit_sidecar
       [ -n "$NEWEST" ] && echo "$NEWEST" > "$WM_ABS"
       exit 0
     fi
@@ -565,6 +577,8 @@ while :; do
     echo "=== A comment addressed to $IDENTITY was EDITED after you saw it ==="
     printf '%s\n' "$EDITED_OUT"
     echo "--- Re-read it. Your earlier understanding may now be stale."
+    # Delivered. Record it AFTER the print, never before — see the sidecar note above.
+    write_edit_sidecar
     exit 0
   fi
 
