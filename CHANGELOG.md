@@ -15,6 +15,147 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-06.2 — takes effect on a pull
+
+**A watcher that returns is not a watcher that is listening.** Two failures were reported on the
+same day from two different sites. One is harmless and was mistaken for the dangerous one; the
+other stalled a live sprint and nobody had noticed it.
+
+### The reaper cannot make you deaf — read the guard, not the symptom
+
+An outside user reported Claude Code killing backgrounded pollers about once a minute for two
+hours, on a host with 25–30 GiB free. Real, and correctly diagnosed as far as it went: the harness
+registers a memory-pressure reaper for background Bash tasks and kills them as a relief valve, and
+it is skipped for `kind === "monitor"` and for foreground calls.
+
+What that report missed is the rest of the condition. The reaper only fires when **all** of these
+hold:
+
+- the **human** has not interacted for 30 minutes (`Date.now() - lastInteractionTime() >= 1800000`)
+- the **main loop is not busy** — the session is idle
+- no agent, teammate or workflow task is running
+
+**So the reaper can never fire while an agent is working.** It fires only when the session is idle,
+and an idle session that receives a task notification gets a **fresh turn** — verified directly:
+a bare `sleep` armed in the background, the turn ended, and its completion started a new turn.
+Every reaper kill therefore wakes the agent, which re-arms. The cost is churn, not deafness.
+
+**And mail was never at risk.** The harness streams a task's stdout to its output file, so anything
+printed survives a `SIGTERM` — verified: the marker was in the file after the kill, and the
+notification carried the file path. Since `watch` prints before it advances the watermark, a kill
+costs a duplicate at worst.
+
+That report shipped a durable-delivery patch series for this — a `.pending` sidecar, a tri-state
+replay flag and a new `REPLAY` banner agents must learn. **It solves a window the reaper cannot
+reach, and it was not taken.** The evidence against it was in the report's own §2.1, which had
+already established that the output file survives.
+
+Also not taken: hosting the poll loop in the harness's Monitor task kind, and
+`CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP`. Both work. Neither is a fix a skill can ship —
+one is not exposed in every session, the other asks a user to change a setting and restart.
+**A fix that requires the reader to reconfigure their machine is not a fix to this skill.**
+
+### The failure that actually stalled a sprint: the re-arm lost a race
+
+Same day, a different sprint, no reaper involved. From the transcript:
+
+```
+14:57:22.824  REVIEWER arms watcher #25
+14:57:25.807  the watcher EXITS 0 — mail delivered      ← 3 seconds later
+14:58:01.297  REVIEWER writes its own comment body
+14:58:04.207  posts it
+14:58:15.673  emits its closing sentence — TURN ENDS
+              no arm #26, ever
+```
+
+25 arms, **all 25 exited 0.** Nothing was killed, nothing was reaped, no non-zero exit anywhere.
+REVIEWER was the only agent allowed to push, so the session stopped. Its human had to type
+*"you went deaf"* into that terminal by hand.
+
+Two things stacked. A busy thread makes `watch` return in seconds instead of minutes, so the
+re-arm has to win a race against the agent's own outbound work many times a minute — and dropping
+it once is permanent. And it happened at the moment re-arming *feels* unnecessary: REVIEWER's last
+line was that nothing was blocked on it, which is precisely when mail is the only way to reach it.
+
+A peer named the reason no rule catches this: **"from the inside a finished watcher looks exactly
+like a waiting one."** A peer also cannot repair it — *"if I re-armed REVIEWER's watcher, mail
+would land in a file no one is reading."* **Arming is not listening.** Listening is a live poller
+*plus* an agent turn that reads its output, and only the agent can supply the second half.
+
+### Why the fix is a second task and not a better rule
+
+Golden rule 7 already made this a completion condition — *a notification anywhere in a turn means
+the turn is not over until you have armed and read* — and it still failed. The reason is
+structural, and it is the constraint nobody in either report had named:
+
+> **The watcher can only reach you by EXITING. Exiting is the wake. So the instant it delivers,
+> nothing is listening — and a notification that arrives during a turn does not create a turn, it
+> is only text appended to work already in flight.**
+
+One task cannot both listen and wake. The harness notifies on **completion** only.
+
+So Step 4 now arms two background tasks together: the watcher, and a bare `sleep 300`. The sleep
+holds no watermark, consumes no mail and can lose nothing. **Its whole value is that it cannot
+return early**, so it is still pending when a turn ends, and it fires while the agent is idle —
+the one state in which a notification does start a fresh turn. Forget the watcher and the sleep
+recovers you; forget the sleep and the watcher's return recovers you. Today one dropped call is
+fatal.
+
+It is not a timeout. It stands nobody down; it only guarantees another turn.
+
+### The self-check was a false-alarm generator
+
+`cat "$WM"` was documented as **proof** that mail had been consumed and discarded. It is not.
+`poll-issue.sh` advances the watermark silently over comments addressed to **other** agents, so
+"ahead of my reading" is the normal state on any busy thread. That wording produced three false
+*"mail was lost"* reports in one sprint — and a false alarm on this detector is what leads an agent
+to the destructive remedy, which is the mechanism `.10` catalogued as a healthy state diagnosed and
+destroyed. The test is now narrower: **a comment addressed to you that was never printed**, confirmed
+in `peek` first.
+
+### `poll-issue.sh` — the edit notice was at-most-once delivery
+
+`write_edit_sidecar` ran at the top of the watch loop, about a hundred lines above the print that
+consumes it. A poller killed in between consumed the flag and delivered nothing, and no later run
+could re-derive it — the sidecar is the only record that the edit was reported.
+
+The main mail path was already safe. This was the one place the order was inverted, and the edit
+path is where it hurts, because an edited spec is invisible without the notice. Now: catch up
+immediately only when there is nothing to deliver, otherwise catch up on the path that has just
+printed it.
+
+Verified against the previous revision with a stubbed `gh` and `SIGKILL` inside the window — old:
+watermark advanced, re-watch reported "no mail", edit gone. New: watermark held, re-watch delivered
+the edit. Both arms confirmed the notice had not printed before the kill, so the window was real in
+each.
+
+The same test was run against the outside report's patch series applied to `eecfab9`: **it does not
+close this window either.** Its own code comment identifies the hazard — *"the edit sidecar already
+caught up above, so this is the only copy: persist it"* — and persists the text without moving the
+catch-up, leaving 123 lines between them.
+
+### What changed, concretely
+
+**Net: `SKILL.md` 835 → 835 lines.** G2 held, and G2 binds a fix exactly as it binds a debrief —
+it is about what the file costs to load every session, and a fix costs the same as a rule.
+
+`SKILL.md`:
+
+- **Step 4 arms two tasks**, with the exit-is-the-wake reason in one paragraph
+- **a new exit-code case:** anything outside `0 / 10 / 42 / 3` means the host killed your watcher —
+  nothing broken, nothing lost, read the output file and arm a new pair
+- **the watermark self-check corrected** in both places it appeared, including the mistakes-table row
+- paid for by three deletions under G1/G3: the founding-sprint foreground anecdote, the `&`
+  narration, and a dead example line
+
+`poll-issue.sh`:
+
+- the edit sidecar is never advanced before the edit has been printed
+
+**No tag and no GitHub release.** A `git pull` delivers everything here.
+
+---
+
 ## 2026-09-06.1 — takes effect on a pull
 
 **A debrief left the skill SHORTER for the first time.** It added 24 rules and the file still
@@ -195,7 +336,7 @@ evening**, each ticked while the same comment listed the other half as open. A c
   stale-context window: a live agent whose context predates the change will emit the old form
   believing it closed the session. The prose was redundant; the shout is not.
 
-`mas-audit.sh`:
+`mas-audit.sh` (the companion observer tooling, not in this repo):
 
 - flags a watermark that is behind the newest comment when no live poller holds its `.pid`
 - surfaces an unread refusal sidecar

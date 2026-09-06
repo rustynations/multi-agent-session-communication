@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # poll-issue.sh — the "radio" for a multi-agent session.
 #
-# Three modes:
+# Four modes:
 #   init  <issue> <identity> <repo> <watermark_file>
 #         Mark all EXISTING comments as already seen. Run once at start so you
 #         do not reprocess history. Prints the watermark it set.

@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-06.1 -->
+<!-- Version: 2026-09-06.2 -->
 
 # Multi-Agent Session
 
@@ -570,12 +570,21 @@ first action or a starting task assigned to you? If yes, DO it now and post the 
 **before** you listen. If every agent only listens, nobody starts and the session deadlocks.
 No opening move? Skip straight to listening.
 
-**Step 4 — listen.** Run the watcher. It BLOCKS and spends zero tokens while waiting.
-It returns only when there is real mail for you, a `[SESSION DONE]`, or it times out:
+**Step 4 — listen. Arm TWO background tasks, always together:**
 
 ```
-"$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"
+"$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"    # the listener
+sleep 300                                      # the backup wake
 ```
+
+The watcher blocks, spends zero tokens, and returns on mail for you, a `[SESSION DONE]`, or a
+timeout. **It can only reach you by EXITING, so the moment it delivers, nothing is listening** —
+and on a busy thread it can exit within seconds, inside a turn already in flight, where it is
+lost when that turn ends. That strands you with no alarm left to ring. A fixed `sleep` cannot
+exit early, so it is still pending when your turn ends and fires while you are **idle** — the
+only state in which a notification starts a fresh turn. **Whichever one wakes you, re-arm BOTH
+before anything else.** Woken by the sleep with no watcher live? You were deaf: read from your
+watermark forward, and do **not** run `init`.
 
 > ### Run the watcher in the BACKGROUND — via the HARNESS, never with `&`
 >
@@ -584,38 +593,24 @@ It returns only when there is real mail for you, a `[SESSION DONE]`, or it times
 >
 > ```
 > "$POLL" watch "$ISSUE" "$ME" "$REPO" "$WM"          # + run_in_background / ctrl+b
->
-> "$POLL" watch ... > /dev/null 2>&1 &                # ☠️ DESTROYS YOUR MAIL
-> "$POLL" watch ... &                                 # ☠️ output goes nowhere you will read
+> "$POLL" watch ... &        (redirected or not)      # ☠️ DESTROYS YOUR MAIL
 > ```
 >
-> A shell `&` detaches the poller from you. It still runs, still collects your mail, and still
-> **advances your watermark** — then throws the mail away. No error. Nothing on the thread looks
-> wrong. You look busy. An agent did exactly this and lost its human's own message (2026-09-05).
->
+> A shell `&` detaches the poller. It still runs, still collects your mail, and still **advances
+> your watermark** — then bins it, with no error and nothing wrong on the thread. A harness-
+> backgrounded task instead re-invokes you when it returns, so nothing is lost.
 > **Never redirect the output either.** The output IS the mail.
 >
-> **Cheap self-check, and it is how that agent caught itself:** compare your watermark against
-> the newest comment you have actually read.
-> ```
-> cat "$WM"                                        # what has been consumed
-> ```
-> A watermark **ahead** of your own reading is proof that something was delivered and discarded.
-> Recover it with `peek`, then say on the thread that you lost mail so senders can re-send.
->
-> You are re-invoked when a harness-backgrounded watch returns, so you lose nothing — and you gain
-> the single best property in this whole protocol:
+> **Cheap self-check:** `cat "$WM"`. The watermark legitimately advances over comments addressed
+> to **others**, so "ahead of my reading" proves nothing by itself. The test is narrower: a comment
+> addressed to **you** that was never printed. Confirm that in `peek` before you touch anything,
+> then say on the thread that you lost mail so senders can re-send.
 >
 > **You keep listening AND stay reachable at the same time.**
 >
 > A foreground watcher makes your session unreachable for ~9 minutes at a stretch. Your human
 > cannot ask you anything, and if you ever stop to prompt them you go **deaf** (rule 7). Both
 > problems disappear when the watcher runs in the background.
->
-> This is measured, not theoretical. In the founding sprint (2026-09-05) all three working agents
-> polled in the **foreground**; two of them went deaf on a prompt, and one had to be rescued by
-> hand. The observer polled in the **background**, talked to its human continuously, and never
-> missed a comment — including one that a foreground watcher had already discarded.
 >
 > **Prefer the structural fix to the disciplinary one.** Rule 7 is the seatbelt; backgrounding is
 > not crashing.
@@ -632,6 +627,10 @@ Read the exit code:
     do not just fall silent — post `[SESSION DONE]` to close the session.
 - **42** → `[SESSION DONE]`. Post `"$ME: signing off."` and stop. Tell the human.
 - **10** → nothing yet. Just run `watch` again to keep listening.
+- **anything else** (`3` aside) → **the HOST killed your watcher; nothing is broken and nothing is
+  lost.** A harness may kill a background task to reclaim memory, and it does so on a loaded
+  machine regardless of how small the poller is. Read the output file named in the notification —
+  anything printed is real mail — then arm a new pair. A repeat message after a kill is expected.
 
 If `watch` prints a **`WARNING — NO WATERMARK FOUND`** banner, stop and treat it as lost mail:
 read the thread by hand and follow **When a message goes missing** above. Do not just carry on
@@ -691,7 +690,8 @@ Then go back to Step 4. That loop IS the session.
 | Building the spec as written | Read it against the code first and report mismatches. Three of seven work items in one order were wrong. |
 | Polling in the foreground | Background the watcher via the harness flag. A foreground poll makes you unreachable for ~9 min, and any prompt then makes you deaf. |
 | **Backgrounding with `&` or redirecting the output** | The poller consumes your mail, advances the watermark and bins it — silently. Use the harness's background flag; the output IS the mail. |
-| Not checking your own watermark | `cat "$WM"`. A watermark AHEAD of the newest comment you actually read proves mail was consumed and discarded. |
+| Calling a watermark "ahead of my reading" lost mail | It advances over comments for OTHER agents — that is normal. The test is a comment addressed to **you** that was never printed. Confirm it in `peek` first. |
+| **Arming the watcher and not the backup wake** | Arm both, every time. The watcher reaches you only by exiting, and can exit inside a turn already in flight — then nothing is left to wake you. |
 | Auditing with `watch` | `watch` returns only mail addressed to you and **discards** everything else. An observer needs `audit`, which returns all traffic. |
 | **A modal ask while your only watcher is in the foreground** | It freezes your session, so you stop polling while the thread still says you are watching. Background the watcher first, and never carry two outstanding asks (rule 8). |
 | Posting "parked, watching" and then not watching | If you are not in `watch`, do not claim you are. A false status is worse than silence — it stops peers looking for the problem. |
