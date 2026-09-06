@@ -172,6 +172,9 @@ evening**, each ticked while the same comment listed the other half as open. A c
 
 ### What changed, concretely
 
+**Net: `SKILL.md` 868 → 835 lines** — 111 insertions against 144 deletions, so 24 new rules cost
+33 fewer lines than the four blocks they replaced.
+
 `SKILL.md`:
 
 - golden rule 5 (the stop word): 21 lines → 3
