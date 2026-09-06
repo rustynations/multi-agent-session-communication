@@ -15,6 +15,192 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-06.1 — takes effect on a pull
+
+**The skill got shorter for the first time.** A debrief added 24 rules and the file still lost
+lines, because four blocks of accumulated justification came out and every new rule ships as its
+imperative alone.
+
+Three governance rules now bind every future debrief:
+
+- **G1. A rule ships as its imperative. Its case study goes here, in the CHANGELOG.** `SKILL.md`
+  is loaded into context every session, forever. This file is not loaded at all.
+- **G2. A debrief may not increase the skill's net length.** And its other half, which now lives in
+  the debrief skill: **a debrief that finds nothing worth adding is a success, and the deletion
+  budget is not a quota to spend.**
+- **G3. A finding earns a line. Only a rule agents keep breaking after being told earns a story.**
+- **Mechanical self-test:** an added line carrying a date, an agent name or an issue number is
+  evidence in the wrong file.
+
+That self-test is why this entry is long. **Everything below was either cut out of `SKILL.md` or
+deliberately kept out of it.**
+
+### Nine watcher-failure mechanisms, four agents, one evening
+
+The human caught **seven**. The duplicate-watcher lock shipped in `.10` caught **two**. **No other
+tooling caught any.**
+
+| | Mechanism |
+|---|---|
+| 1 | lapse between cycles while heads-down |
+| 2 | lapse after posting |
+| 3 | two watchers on one watermark — *caught by the lock* |
+| 4 | arming made conditional with `&&` |
+| 5 | a turn with no tool calls at all (×3) |
+| 6 | `&` plus output to `/dev/null` — *the lock fired into `/dev/null`* |
+| 7 | a healthy state mis-diagnosed and destroyed |
+| 8 | a turn full of tool calls, none of them the watcher |
+| 9 | the closer's own stop token killed its own watcher |
+
+**Mechanisms 1, 2, 5 and 8 are one failure wearing four costumes: the turn ended and nobody
+re-armed.** Two positional fixes had already failed on it, because some turns *begin* with a
+notification and others *end* with one. So golden rule 7 is now a **completion condition** rather
+than a position: *a notification present anywhere in a turn means the turn is not over until you
+have armed and read.*
+
+**Mechanism 6 is the whole justification for the refusal sidecar.** The lock refused a duplicate
+watcher, printed a correct explanation of why — and printed it down the channel the agent had just
+broken. The one output that would have prevented the incident was the one that was discarded. A
+refusal delivered into `/dev/null` is not a refusal. And a file nobody reads is not a channel
+either, so the sidecar ships **with a consumer**: the next successful `watch`/`audit` prints any
+unread refusal at the top of its output and deletes it.
+
+**Mechanism 7 is why the three-step recovery procedure is gone.** An agent found a watermark that
+had lost nothing, applied the documented recovery to it, and thereby killed a live watcher and
+rewound good state. **A recovery procedure that fires on a non-incident is worse than no procedure,
+because a non-incident is the common case.** One gate survives it: confirm the loss in `peek`
+before you remedy it — the diagnostic is non-destructive and the remedy is not. It is placed
+between the diagnosis and everything downstream, because the diagnosis did not cause that
+incident; its *adjacency* to the remedy did.
+
+**Mechanism 9 is a protocol defect, not an agent error.** Authorship is not filtered, so a closer's
+own release stops its own watcher. The obvious fix does not work: `watch` returns only mail
+addressed to you, and a sign-off is addressed to nobody. **So the closer polls with `peek`, matching
+one signature per roster name.**
+
+**And the honest reading of seven-of-nine:** nothing inside a stopped process can detect that it
+stopped. Liveness is an **external** check, and without a runner the human is the detector.
+
+### 108 comments in one evening — one every 81 seconds
+
+35 of them contained a self-correction. **Every one was justified by a rule in this skill**, and
+together they built a thread the human could not read. A coordinator closed over a builder's
+objection specifically because the objection was buried in volume.
+
+> **The skill had a completeness model and no rate model.**
+
+The fix is neither a length budget nor an exhortation to be brief:
+
+> **The thread was doing two jobs and only one of them needs to be append-only. A ledger is
+> EDITED; a conversation is APPENDED.**
+
+One ledger comment — `item → owner → state` — owned by the **gate-holder**, not the coordinator.
+The coordinator is the agent most likely to go deaf, and a stale ledger that reads as current is
+worse than none. Alongside it: agreement that changes a **row** is silent, agreement that changes
+only a **belief** costs one line, `peek` before anything long, and a retraction is one line plus
+the corrected claim.
+
+### The human is an instrument, not a fallback
+
+Three decisive discriminations came from a human's screenshots, and **all three were incidental to
+what was asked** — a `101 Switching Protocols` that retroactively licensed a replay test, the
+wording *"by an administrator"* that separated two code paths, and an `Account Disabled` screen
+that separated a 403 from a 401.
+
+> **Ask for the raw artifact, never a verdict.** *"Did it connect?"* returns `yes` and teaches
+> nothing. A human's artifact is wide-spectrum; an agent's check is narrowband and aimed only at
+> what the agent already suspects.
+
+Four agents each became an unmanaged channel at the same person, none by design and every one
+helpful — hence: exactly one agent issues asks, and every other reports state and names who to
+take instructions from. **Report freely; order nothing.**
+
+One agent also over-asked and under-asked the same person inside one hour: four parallel asks, and
+a required check quietly dropped as a kindness. **Never let your human's fatigue decide what counts
+as verified.** State the gap, offer the waiver explicitly, record whichever they choose. Declining
+that waiver is what turned 15-of-17 acceptance criteria into 17-of-17.
+
+### The self-catch claim, corrected
+
+`.9` and `.10` recorded that authors catch nothing by re-reading their own words. That was too
+strong, and all three agents refined it identically:
+
+> **An author CAN catch themselves — but only with a tool in hand.** Compare two artifacts, or ask
+> a tool that produces a number or an event you did not ask for. **Re-reading one artifact for
+> sense is the one form that never works** — every stale line read perfectly.
+
+The same correction applies to a changed criterion. The remedy is not *"re-read your finished
+work"*: list every artifact that cited the **old** criterion and check those, including verification
+records and not only work items.
+
+### Rule 19's three instances — prove a check can FIRE before you trust it
+
+The rule ships bare in `SKILL.md`, with one worked example. Its evidence is here:
+
+- a closing-keyword pattern that was `^`-anchored and tested against 3 of 9 real forms
+- **its replacement, which errored and printed `SAFE`**
+- a lint gate that was green because it ran on zero files
+
+The worked example kept in the skill is the one that generalises: **to prove an edit was applied,
+count the ABSENCE of the old form, not the presence of the new one.** Both can sit in the same file,
+and a half-applied edit then reads as a pass.
+
+Related, and now fixed at authoring time rather than at tick time: **three conjunction-ticks in one
+evening**, each ticked while the same comment listed the other half as open. A criterion containing
+"and" is written as two ids before anything can be ticked against it.
+
+### Stories that used to be in `SKILL.md` and live here now
+
+- **The frozen-session prompt.** An agent posted *"Parked, watching"*, blocked in a modal prompt,
+  and stopped polling; the coordinator's answer landed 55 seconds later and could not be read. The
+  blanket ban that anecdote justified is replaced by **golden rule 8's two conditions** — a
+  structured question tool is allowed, but never while your only watcher is in the foreground, and
+  never as a second outstanding ask. Backgrounding the watcher is what makes the *shape* of an ask
+  safe; the ban never addressed the *number* of asks, and the number was the injury. Four
+  structured pickers are worse than four prose asks.
+- **The heartbeat.** 65 minutes of quiet while a human was away. One heartbeat comment turned
+  *"is this dead?"* into a legible hold, for the cost of one comment. A timeout would have been the
+  wrong fix — it stands agents down on a clock, which is the one judgement reserved for the human.
+- **The orphaned relative watermark.** A `cd` mid-session pointed a watcher at a fresh, empty
+  watermark file, which swallowed a `[BUILDER] go` and deadlocked a live three-agent sprint. The
+  boxed warning is gone from `SKILL.md` because the workflow snippet three lines above it already
+  uses an absolute path and the script prints the resolved path on every call — **a warning whose
+  behaviour is guaranteed by the code above it is narration.** It is **not** gone because it stopped
+  happening; that argument is survivorship, and it must not become the precedent that deletes a
+  load-bearing guard. The durable line lives in `poll-issue.sh`'s header, next to the code it
+  constrains.
+
+### What changed, concretely
+
+`SKILL.md`:
+
+- golden rule 5 (the stop word): 21 lines → 3
+- golden rule 7 (the watcher): → 3 lines, now a completion condition
+- `## The seven golden rules` is now **eight** — the structured-question rule became golden rule 8
+- the orphaned-relative-watermark box and the three-step recovery are deleted; the
+  **delivery-vs-reading** two-mechanism table survives, and so does *"an absent watermark file
+  means I cannot tell, never they are not listening"*
+- 24 numbered items from the debrief, **each two lines or fewer**, each placed in the checklist of
+  the moment it fires in rather than in a topical section. *A rule whose action happens at a named
+  moment must live in that moment's checklist; topical sections are for understanding, checklists
+  are for doing.*
+
+`poll-issue.sh`:
+
+- refusal sidecar **plus its consumer**
+- the legacy bare-`SESSION DONE` shout is **kept**. The parser fix is what *creates* the
+  stale-context window: a live agent whose context predates the change will emit the old form
+  believing it closed the session. The prose was redundant; the shout is not.
+
+`mas-audit.sh`:
+
+- flags a watermark that is behind the newest comment when no live poller holds its `.pid`
+- surfaces an unread refusal sidecar
+- states the limit **in its own output**, not only in its docs: liveness is an external check.
+
+**No tag and no GitHub release.** Nothing in this entry needs a reader to do anything that a
+`git pull` will not deliver.
+
 ## 2026-09-05.11 — correction
 
 **A named cause in `.10` was wrong, and the way it was wrong is the useful part.**
