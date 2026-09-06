@@ -96,6 +96,7 @@ JSON_TMP="${WM_ABS}.comments.json"   # raw fetch
 EDIT_FILE="${WM_ABS}.edits"          # sidecar: id:includesCreatedEdit per comment
 FP_FILE="${WM_ABS}.fp"               # sidecar: id:updated_at per comment (audit)
 LOCK_FILE="${WM_ABS}.pid"            # sidecar: PID of the live watcher on this watermark
+REFUSED_FILE="${WM_ABS}.refused"     # sidecar: arm attempts the lock turned away
 
 echo "watermark file: $WM_ABS"
 
@@ -149,6 +150,14 @@ acquire_lock() {
       echo "## Only if you are certain that watcher is gone:"
       echo "##   kill $OLD_PID   # then run this command again"
       echo "########################################################################"
+      # A REFUSAL THAT PRINTS INTO /dev/null NEVER HAPPENED. The lock's whole value
+      # is this banner, and in a real incident the banner was correct and discarded
+      # because the caller had backgrounded the poller with a shell redirect. So
+      # record the refusal on disk too: the next watcher that DOES acquire the lock
+      # replays it, and mas-audit.sh surfaces it for a caller that never watches
+      # again. APPEND, never truncate — two refusals must not overwrite each other.
+      printf '%s  arm refused: PID %s blocked by live PID %s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$OLD_PID" >> "$REFUSED_FILE" 2>/dev/null
       exit 3
     fi
     if [ -n "$OLD_PID" ]; then
@@ -164,6 +173,31 @@ acquire_lock() {
   trap 'release_lock' EXIT
   trap 'release_lock; exit 143' TERM
   trap 'release_lock; exit 130' INT
+}
+
+# Replay any refusal that was recorded but never read, then clear it. A file
+# nobody reads is not a channel, so the sidecar only earns its place because THIS
+# runs. Called once per successful arm, before the poll loop, so it lands at the
+# TOP of the output rather than up to MAX_WAIT seconds later.
+#
+# It cannot know whether the caller read the original banner, so it does not
+# accuse: it states what the lock did and lets the reader decide. Deliberately a
+# NOTE and not a warning — a false alarm on the healthy path teaches a reader to
+# skip the line where the real fault appears.
+consume_refusals() {
+  [ -s "$REFUSED_FILE" ] || return 0
+  echo "########################################################################"
+  echo "## NOTE — AN EARLIER ARM ATTEMPT WAS REFUSED ON THIS WATERMARK."
+  echo "##"
+  sed 's/^/## /' "$REFUSED_FILE" 2>/dev/null
+  echo "##"
+  echo "## The lock did its job and you kept listening, so this is a receipt, not"
+  echo "## a loss. If you never saw the refusal banner at the time, then a poller"
+  echo "## you armed had its output discarded — find that call and stop redirecting"
+  echo "## it. If you did see it, nothing to do."
+  echo "########################################################################"
+  echo
+  rm -f "$REFUSED_FILE"
 }
 
 release_lock() {
@@ -274,6 +308,7 @@ fi
 # consume nothing, so they must never be blocked by a healthy watcher — `peek` in
 # particular is the recovery tool you reach for WHILE a watcher is armed.
 acquire_lock
+consume_refusals
 
 # =============================================================================
 # audit — return EVERY new or edited comment (observer role)
@@ -438,8 +473,17 @@ while :; do
     #
     # The strip list is CLOSED, not accumulating: it is everything markdown renders
     # as code or quoted text.
-    STOP="$(printf '%s' "$NEW" | jq '
+    #
+    # AND NOT YOUR OWN. A closer posts the token itself, so without this filter its
+    # own watch reports "SESSION DONE received" back at it and exits 42 — telling an
+    # agent that a session it just closed has been closed. Cosmetic, but it is a
+    # confusing exit code on the one path where the agent is already certain.
+    # Authorship here is the SIGNATURE PREFIX, never `.user.login`: every agent posts
+    # under one shared GitHub login, so the API author cannot separate us. Same
+    # predicate the MAIL filter below uses.
+    STOP="$(printf '%s' "$NEW" | jq --arg id "$IDENTITY" '
       [ .[]
+        | select( (.body | test("^\\s*" + $id + "\\s*:"; "i")) | not )
         | select(
             ( .body
               | gsub("```[\\s\\S]*?```"; ""; "m")      # fenced block, backticks
