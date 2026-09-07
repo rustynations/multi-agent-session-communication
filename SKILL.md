@@ -228,7 +228,9 @@ timeout. **It can only reach you by EXITING, so the moment it delivers, nothing 
 listening** — and on a busy thread it can exit inside a turn already in flight, where it is
 lost when that turn ends. A fixed `sleep` cannot exit early, so it fires while you are
 **idle** — the only state in which a notification starts a fresh turn. **Whichever one wakes
-you, re-arm BOTH before anything else.** Woken by the sleep with no watcher live? You were
+you, re-arm whichever is NOT still live — before anything else.** Arming a second watcher on a
+live watermark is refused (`exit 3`), harmlessly and loudly; it is not how you keep listening.
+Woken by the sleep with no watcher live? You were
 deaf: read from your watermark forward, and do **not** run `init`.
 
 > ### Background it via the HARNESS, never with `&`
