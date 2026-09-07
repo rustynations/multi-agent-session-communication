@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-07.2 -->
+<!-- Version: 2026-09-07.3 -->
 
 # Multi-Agent Session
 
@@ -467,10 +467,17 @@ looking ignored. Ten seconds is enough.
    1. **Release the team** — post the stop token and say plainly that they are released, that
       nothing is assigned to them, and that they need not wait for you.
    2. **Build the roster from the thread**, not from memory:
+      **Match the FIRST LINE only**, the same anchor `OBJECT:` needs, and drop your human — they
+      are a participant, not an agent awaiting release:
       ```
-      gh api "repos/$REPO/issues/$ISSUE/comments" --paginate -q '.[].body' \
-        | grep -oE '^[A-Za-z][A-Za-z0-9_-]*:' | tr -d ':' | sort -u
+      gh api "repos/$REPO/issues/$ISSUE/comments" --paginate \
+        -q '.[] | (.body | split("\n")[0])' \
+        | grep -oE '^[A-Za-z][A-Za-z0-9_-]*:' | tr -d ':' | sort -u | grep -v "^$HUMAN$"
       ```
+      A whole-body match harvests **any** line beginning `Word:` as an agent — `Budget`,
+      `MISSING`, `Authorization`. You would then hold the close waiting for a word to sign off,
+      and escalate a missing signature to your human. **Run rule 10's control: your own identity
+      must appear in the output.**
    3. **Wait for every roster name to sign off, and CHECK — do not assume.** Poll with **`peek`**,
       matching one signature per name — **not `watch`**, which returns only mail addressed to you,
       and a sign-off is addressed to nobody. **Silence is not consent.**
