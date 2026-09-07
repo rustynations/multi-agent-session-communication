@@ -15,6 +15,82 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-06.3 — 🔴 ACTION REQUIRED
+
+**A rewrite, not an addition. `SKILL.md` goes from 835 lines to 602, and about 200 of the removed
+lines were the skill telling every agent how to do its work.**
+
+### The premise, now stated
+
+> **The issue owns the work. This skill owns the talking.**
+
+What to build, who does which part, and how much the job is worth are decided **on the issue**.
+This skill tells you how to sign, address, listen, recover lost mail and close. It never tells you
+how to do your lane's work, and **it never assigns you a second lane.** If it is not on the thread,
+it is not your job.
+
+### 🔴 What you must change
+
+**1. If you are the first agent on an empty thread, you are FILO — and FILO now has 14 written
+duties.** They are a new section, placed before start-up. FILO is the only agent that talks to the
+human, sizes the sprint, writes the work order, rules disputes and closes, so a FILO mistake is
+the session's mistake multiplied by every agent that correctly obeyed it. The four that change
+behaviour most:
+
+- **Bring your human a question, not a work order.** The job as you read it, what already does this
+  job, the smallest change you can see, one larger option and what it buys, your recommendation.
+  Your human is the cheapest reviewer of the requirement — do not spend them at the end.
+- **Test the issue. It is an input, not an instruction.** In particular: **an acceptance criterion
+  that names an artifact — "route X exists", "file Y is added" — makes that design compulsory,**
+  because no agent can pass it with a cheaper correct fix. Rewrite it as observable behaviour or
+  get a ruling. And if the issue's framing and its prescription disagree, stop and say so: detail
+  beats a one-sentence framing, so a prescription wins by default.
+- **Say the size out loud in one line**, then size the session to that number rather than to the
+  issue's plan. Two agents on a small job is a good session.
+- **Set a check budget before work starts.** The plan is a floor, not a ceiling — agents generate
+  checks beyond it wherever the design is closed and the verification is left open. An unbounded
+  check budget is a scope decision you make by not making it.
+
+**2. Never write "the design is sound — take it."** It closes the one question worth leaving open.
+Agents get creative wherever you leave room, so leave the design open and bound the checking
+instead.
+
+**3. "A closed issue is not a completed sprint" is now golden rule 9.** It was one line buried
+two-thirds of the way down. The session ends on the stop token plus every sign-off and on nothing
+else; an issue's open/closed state starts nothing and ends nothing. Never stand down because a
+tracker says you are done — and closing the issue must not silence the thread, because the most
+valuable finding of a sprint can arrive after the close.
+
+**4. Do not do another lane's work.** Two agents on one lane is not thoroughness, it is one lane
+done twice. If you are not the reviewer, you are not the reviewer.
+
+### What was removed, and why
+
+**Every section that told you how to do work rather than how to talk.** The largest was 118 lines
+on checking an alarming verification result, along with pre-registering predictions, proving your
+evidence can support your claim, re-checking before a commit, reading the spec against the code,
+and numbering-versus-ordering.
+
+They were good paragraphs aimed at the wrong audience. Written as advice to **all** agents, they
+quietly gave everyone a reviewer's job on top of the lane the issue had assigned — which is how a
+small change ends up with three agents re-deriving each other's claims. The judgement they describe
+belongs in the issue, where a lane can own it.
+
+**The war stories went too, and that is not just trimming.** A story is a template: an agent that
+reads "six look-alikes, three purpose-built instruments" learns that look-alike hunting is normal
+here. Evidence for a rule is for the human deciding whether to adopt it; in the skill it teaches
+the behaviour it warns about. **No rule now carries its own evidence.** If a rule is not obviously
+right on its own, it should not be a rule.
+
+**Nothing about message delivery was removed.** Absolute watermarks, the two loss mechanisms, one
+armed watcher and one output file read, the backup wake beside the watcher, the harness background
+flag, `--paginate`, the observer's `audit` mode, the FILO close procedure and the roster wait are
+all intact. Those were each found by a live failure and every one of them is transport.
+
+**`poll-issue.sh` is unchanged.**
+
+---
+
 ## 2026-09-06.2 — takes effect on a pull
 
 **A watcher that returns is not a watcher that is listening.** Two failures were reported on the
