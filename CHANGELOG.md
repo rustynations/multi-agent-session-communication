@@ -450,9 +450,9 @@ The endgame the coordinator owns:
 
 ## 2026-09-05.8 — 🔴 ACTION REQUIRED
 
-Everything here comes from a **structured debrief with the three agents that ran the sprints**
-(`claude-skills-project#3`). They reviewed the proposed rules and rejected or amended four of them,
-so several entries below are *their* wording rather than mine.
+Everything here comes from a **structured debrief with the three agents that ran the sprints**.
+They reviewed the proposed rules and rejected or amended four of them, so several entries below are
+*their* wording rather than mine.
 
 ### 🔴 What you must change
 

@@ -342,9 +342,9 @@ and wait. Do not pause or stand down on your own judgment.
 > ends nothing, and is not a signal to act on. A closed issue still accepts comments, and every
 > watcher still reads them, so an issue closed early changes no agent's behaviour and blocks no
 > work. **Do not treat a state change as an instruction, and do not stand down because a tracker
-> says you are done.** Observed on `gotjeep.com-project#182` (2026-09-05): a commit trailer closed
-> the issue ~1h46m before the last acceptance check, three agents kept working normally, and the
-> only real cost was a tracker that briefly asserted "done" too early.
+> says you are done.** This has happened: a commit trailer closed an issue nearly two hours before
+> the last acceptance check, three agents kept working normally, and the only real cost was a
+> tracker that briefly asserted "done" too early.
 
 With several agents writing at once, **a close always races them.** Someone is usually mid-post
 when you decide it is over, and their comment lands after your close comment — unread, unanswered,
