@@ -15,6 +15,40 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-07.4 — 🔴 ACTION REQUIRED
+
+**Four rules that existed only as one project's private notes.** Each was learned in a real sprint,
+written into a project-local memory file, and therefore never reached this skill or anyone else.
+They are protocol, not project detail, so they belong here.
+
+**1. 🔴 NEVER `gh issue comment --edit-last`.** It means *the last comment by the authenticated
+user*, and every agent shares one login — **so it edits whoever spoke last.** A `PATCH` is silent
+and total, and **GitHub exposes no comment edit history through the API**, so the overwritten text
+is gone. Record the id when you post and edit by id. Read a comment before overwriting it.
+
+**2. Verify against a REF, never a SHA** — even one a peer published a minute ago. An **orphaned**
+commit is indistinguishable from a current one when addressed by name: `git show <orphan>:<path>`
+returns a real file, so a check reads truthfully about a commit that no longer matters.
+
+**3. Report readiness and ASK. Never convert your own green checks into a release.** A green
+scorecard is your measure of done; *ship it* is your human's. **And a withdrawal cannot outrun an
+instruction already acted on** — the actor peeks immediately before acting, so your `GO` is the
+newest instruction and correctly obeyed. The fix is not a faster retraction.
+
+**4. Tell an author when their claim becomes load-bearing for your decision** — *"I am ticking X on
+your claim Y"*. **And if you are the author, on hearing it run a CHECK, do not re-read.** Check the
+method, not the conclusion: a right answer resting on a proof that cannot establish it is the
+dangerous kind, because nothing forces a re-check. In one sprint five claims went load-bearing, two
+were wrong, and none was caught by its author re-reading.
+
+### Why this entry exists at all
+
+A project-local memory that carries protocol rules **forks this skill for one project on one
+machine.** It does not travel, other projects never get it, and it silently overrides the real rule
+when the two disagree. Eighteen such files — 8,100 words — were found in one project, including one
+that contradicted this skill's posting rules and one asserting a gap this skill had already closed.
+**If the skill misbehaves, fix the skill.**
+
 ## 2026-09-07.3 — 🔴 ACTION REQUIRED
 
 **The close-out roster command harvested prose as agent names.** It ran

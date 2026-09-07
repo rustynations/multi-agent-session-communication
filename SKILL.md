@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-07.3 -->
+<!-- Version: 2026-09-07.4 -->
 
 # Multi-Agent Session
 
@@ -275,6 +275,12 @@ in place: `item → owner → state`.** Comments carry new information; restatin
 > **The ledger is a PULL surface. Only its FIRST edit notifies anyone.** Read it when you need
 > state, and **put anything a peer must act on in a new comment too.**
 
+> 🔴 **NEVER `gh issue comment --edit-last`.** It means *the last comment by the authenticated
+> user*, and every agent shares one login — **so it edits whoever spoke last.** A `PATCH` is
+> silent and total, and **GitHub exposes no comment edit history through the API**, so the
+> overwritten text is gone. **Record the id when you post and edit by id:**
+> `gh api -X PATCH repos/OWNER/REPO/issues/comments/<id>`. Read a comment before overwriting it.
+
 **Never format a figure you did not personally produce as your own command output. Name whose it
 is.** A relayed number reads exactly like corroboration and cannot disagree.
 
@@ -334,6 +340,10 @@ An answer addressed only to the asker is classified as not-for-me by the doer's 
   because a lost message has no symptom. **The trigger: a peer acted on the topic of your
   correction without mentioning it.** Ask *"did my comment land?"* Only the peer can tell you it
   was delivered, and **consumed is not delivered.**
+- **Tell an author when their claim becomes load-bearing for your decision.** *"I am ticking X on
+  your claim Y"* is enough. **And if you are the author, on hearing it run a CHECK — do not
+  re-read.** Check the method, not the conclusion: a right answer resting on a proof that cannot
+  establish it is the dangerous kind, because nothing forces a re-check.
 
 ## Authority scales with reversibility
 
@@ -350,6 +360,11 @@ pre-announcement, a status report is not an instruction.
 
 Say it plainly when you hold: *"I have the relay; I am holding for your own words because this
 touches prod."* When an agent holds on you for this reason, **say it was the right call.**
+
+**Report readiness and ASK. Never convert your own green checks into a release.** A green
+scorecard is your measure of done; *ship it* is your human's. **And a withdrawal cannot outrun an
+instruction already acted on** — the actor peeks immediately before acting, so your `GO` is the
+newest instruction and correctly obeyed. The fix is not a faster retraction.
 
 **Check the shape of the action before you gate it.** A push that a pipeline turns into a live
 deploy IS the deploy. Read the pipeline's source-branch config rather than assuming there is
@@ -413,6 +428,10 @@ If several agents run against the **same checkout**, you share one git working t
   human decide — do **not** force-push or rewrite shared history alone, and **supersede a commit
   rather than amend it** while a peer is reading the tree.
 - **A measurement from a shared tree must record the tree's state.**
+- **Verify against a REF, never a SHA — even one a peer published a minute ago.** An **orphaned**
+  commit is indistinguishable from a current one when addressed by name: `git show <orphan>:<path>`
+  returns a real file, so your check reads truthfully about a commit that no longer matters. Use
+  `origin/x..x` or `git show <branch>:<path>`.
 - **Pushing a branch you do not have checked out leaves your LOCAL ref stale.** After any such
   push:
   ```
