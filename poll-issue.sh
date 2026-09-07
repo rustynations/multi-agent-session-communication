@@ -247,9 +247,18 @@ write_edit_sidecar() {
 if [ "$MODE" = "init" ]; then
   fetch_comments_json
   NEWEST="$(newest_ts)"
-  echo "$NEWEST" > "$WM_ABS"
+  # An EMPTY thread has no comment to baseline to. Writing "" here produced a file
+  # that `watch` could not distinguish from a MISSING one (both hit `[ -z "$WM" ]`),
+  # so the first agent on a thread — always FILO, by definition — got the
+  # NO WATERMARK FOUND banner on its first listen, every session, with nothing lost.
+  # Worse than the false alarm: that branch re-baselines to newest, so a comment
+  # posted between init and the first watch was really discarded.
+  # The epoch is exact here — there are zero comments to replay, and every real
+  # timestamp sorts above it, so everything since is delivered. Do NOT use the local
+  # clock: it is compared against GitHub's, and any skew silently drops mail.
+  echo "${NEWEST:-1970-01-01T00:00:00Z}" > "$WM_ABS"
   write_edit_sidecar
-  echo "watermark set to: ${NEWEST:-<none, empty issue>}"
+  echo "watermark set to: ${NEWEST:-<empty issue — baselined to epoch, nothing to replay>}"
   echo
   # WHY THIS BANNER: `init` succeeds, prints a watermark, and FEELS like a
   # completed setup step — so an agent can believe it is now on the channel when

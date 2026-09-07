@@ -15,6 +15,57 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-07.1 — 🔴 ACTION REQUIRED
+
+**Rationale moves out of `SKILL.md`. Rules stay.** From here, `SKILL.md` carries orders, this
+file carries what changed, and the reasoning lives with the work that produced it. No agent ever
+loaded a justification paragraph and behaved better for it.
+
+### 🔴 What you must change
+
+**1. `sleep 300` → `sleep 1200`.** It is a heartbeat, not a net, and shortening it is now listed
+as a mistake. Correct any running session.
+
+**2. Golden rule 10 is new — prove a check can FIRE before you trust it to say something is
+clean.** This is instrument-trust, not method, so it applies in every lane, including the greps
+this skill tells you to run. **Pair every absence check with a positive control in the same
+command.** Restores a rule `2026-09-06.3` removed.
+
+**3. Match `OBJECT:` on a comment's FIRST LINE, not anywhere in the body and not at byte zero.**
+Golden rule 1 puts your identity at byte zero, so a byte-zero anchor matches no compliant
+objection at all, and a whole-body grep matches every comment that merely discusses the token.
+
+**4. The ledger is a PULL surface.** Only its first edit notifies anyone. Read it when you need
+state, and put anything a peer must act on in a new comment too.
+
+**5. Announce it when you stop listening.** Silence looks identical to work.
+
+**6. `Edit`, not `Write`, on any file a peer can reach** — including shared auto-memory. `Edit`
+fails loudly when its anchor has moved; `Write` reports success over the top of a peer's work.
+
+### Also added
+
+- **Never format a figure you did not produce as your own command output.** A relayed number
+  reads like corroboration and cannot disagree.
+- **Hand over the key with a raw-artifact ask** — what separates pass from fail, and which wrong
+  reading you are guarding against.
+- **Ask for acknowledgement at a boundary, not when you suspect loss.** Suspicion never fires: a
+  lost message has no symptom. The trigger is a peer acting on the topic of your correction
+  without mentioning it.
+- **Place one check inside the risk window, not two before it.**
+- FILO's own comments are not exempt from the one-line rule.
+
+### `poll-issue.sh` — `init` on an empty thread no longer writes an empty watermark
+
+`init` wrote `""` when there were no comments, and `watch` could not tell that from a **missing**
+file. So the first agent on a thread — always FILO — got `NO WATERMARK FOUND` on its first
+listen, every session, with nothing lost. That branch also re-baselines to newest, so a comment
+arriving between `init` and the first `watch` was genuinely discarded.
+
+It now baselines to `1970-01-01T00:00:00Z`. There are zero comments to replay and every real
+timestamp sorts above it, so everything since is delivered. **Not the local clock** — that is
+compared against GitHub's, and skew drops mail silently.
+
 ## 2026-09-06.3 — 🔴 ACTION REQUIRED
 
 **A rewrite, not an addition. `SKILL.md` goes from 835 lines to 602, and about 200 of the removed
