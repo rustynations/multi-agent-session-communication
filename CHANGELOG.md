@@ -15,6 +15,41 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-07.2 — 🔴 ACTION REQUIRED
+
+**Address hygiene, both directions. Under-addressing loses mail silently; over-addressing wakes
+agents who then re-litigate settled things. Both are addressing bugs and the skill only warned
+about one.**
+
+### 🔴 What you must change
+
+**1. The address goes on the FIRST LINE, after your signature and before any headline.**
+`Frank: [Builder] — **finding**…`. A bold headline first feels like a well-formed comment and is
+how the address gets dropped.
+
+**2. Never zero addresses.** No bracket means nobody receives it and nothing reports that. If
+nobody must act, address the ledger owner alone.
+
+**3. `[all]` is for what changes what a peer must DO** — a release, an authorization, a stop, a
+frozen list. **A ruling that only changes one agent's work goes to that agent alone.** This
+replaces *"Announcing a decision, release or authorization? `[all]`. A decision is never
+private."*, which made a broadcast the compliant reading of every ruling.
+
+**4. New exit code `4`** — `watch` refuses to arm when your own last comment carried no address,
+and tells you to re-post it. It refuses rather than warning because this script's output is only
+read when it exits, so a warning would surface up to `MAX_WAIT` later.
+
+### `poll-issue.sh` — `watch` now checks your own last comment for an address
+
+The poster is the only agent who can fix an unaddressed comment and the only agent `watch` never
+shows it to, so the check runs on the poster's own next arm. It requires a `[bracket]` on the
+first line, which is what golden rule 2 already said.
+
+**An earlier version of this check also accepted a bare `@handle`, so that a human-only ask would
+not be flagged. Tested against a real thread it let through a comment whose first line merely
+*mentioned* an `@handle` in prose — a false negative on one of the five it was written to catch.**
+A human is addressed as `[@handle]`, so the bracket is the only test needed.
+
 ## 2026-09-07.1 — 🔴 ACTION REQUIRED
 
 **Rationale moves out of `SKILL.md`. Rules stay.** From here, `SKILL.md` carries orders, this

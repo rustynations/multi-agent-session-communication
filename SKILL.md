@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-07.1 -->
+<!-- Version: 2026-09-07.2 -->
 
 # Multi-Agent Session
 
@@ -38,6 +38,11 @@ Missing either? **STOP and ask the user.** Do not guess.
 2. **Address** every comment — name who it is for in **square brackets**: `[Builder]` or
    `[all]`. Brackets, never `@`. **`@` is reserved for real GitHub accounts** — every obvious
    agent name is also somebody's real handle.
+   **Put it on the FIRST LINE, after your signature and BEFORE any headline:**
+   `Frank: [Builder] — **finding**…`. A bold headline first feels like a well-formed comment and
+   is how the address gets dropped.
+   **Never zero addresses.** No bracket means nobody receives it and nothing reports that. If
+   nobody must act, address the ledger owner alone.
 3. **Watermark** — never re-read old comments. The poll script tracks this.
 4. **Act only if it is for you AND needs action.** A plain "ok / thanks" ends the chain.
    Reply to it and you start an echo loop. Silence is allowed.
@@ -223,8 +228,11 @@ Read the exit code:
   - **If it means your goal is met**, do not fall silent — post the stop token.
 - **42** → stop token. Post `"$ME: signing off."`, stop, and tell the human.
 - **10** → nothing yet. Run `watch` again.
-- **anything else** (`3` aside) → **the HOST killed your watcher; nothing is lost.** Read the
-  output file named in the notification, then arm a new pair. A repeat message is expected.
+- **4** → **your own last comment carried no address, so nobody received it.** Re-post it with
+  `[NAME]` or `[all]` on the first line, then arm `watch` again. It refuses rather than blocking,
+  because a warning you only see 9 minutes later is how five comments in a row get lost.
+- **anything else** (`3` and `4` aside) → **the HOST killed your watcher; nothing is lost.** Read
+  the output file named in the notification, then arm a new pair. A repeat message is expected.
 
 **`WARNING — NO WATERMARK FOUND` means mail was probably lost.** Read the thread by hand and
 follow **When a message goes missing**. Do not carry on watching.
@@ -315,7 +323,11 @@ An answer addressed only to the asker is classified as not-for-me by the doer's 
 **marked seen, and discarded.** No error either end.
 
 - Answering a question? Address **the asker AND the doer.** Unsure → `[all]`.
-- Announcing a **decision, release or authorization**? `[all]`. A decision is never private.
+- **`[all]` is for what changes what a peer must DO** — a release, an authorization, a stop, a
+  frozen list. **A ruling that only changes one agent's work goes to that agent alone.**
+- **Over-addressing is an addressing failure too, and it looks like diligence.** An agent woken by
+  traffic it has no action on starts re-agreeing and re-litigating a settled thing. Losing mail is
+  invisible; broadcasting it is noise. **Both are addressing bugs.**
 - Waiting on an answer that should have come? It may have gone to somebody else. **`peek` —
   `watch` cannot show you what it already discarded.**
 - **Ask for acknowledgement at a boundary, not when you suspect loss** — suspicion never fires,
@@ -500,6 +512,9 @@ exists.
 |---|---|
 | Replying to every "ok / thanks" | Only reply if action is needed. Kill the echo. |
 | Forgetting to sign or address | Every comment starts `Me:` and names `[who]`. |
+| **A headline before the address** | Signature, bracket, THEN prose. A bold lead feels complete and drops the address — the comment then reaches nobody. |
+| **A comment with no bracket at all** | Nobody receives it and nothing errors. If nobody must act, address the ledger owner. |
+| **`[all]` on a ruling only one agent acts on** | Address that agent. `[all]` wakes peers who then re-agree with settled things. |
 | Addressing an agent with `@` | Use brackets. `@` is for real accounts. |
 | Re-answering old comments | Run `init` once at start; trust the watermark. |
 | Polling with a tight loop in the LLM | Never. `watch` blocks in bash, not in tokens. |

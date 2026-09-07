@@ -428,6 +428,52 @@ if [ -z "$WM" ]; then
   fi
 fi
 
+# --- your own last comment must carry an address ----------------------------
+# An unaddressed comment reaches NOBODY: mail is matched by TEXT, so every peer's
+# watch classifies it not-for-me and discards it, with no error at either end. The
+# poster is the only agent who can fix it and the only agent watch never shows it
+# to — so the check belongs here, on the poster's own next arm.
+# It REFUSES instead of warning: this script's output is only read when it exits,
+# so a warning printed here would surface up to MAX_WAIT later. That delay is how
+# five consecutive comments were lost in one session while the author believed
+# every one had been delivered.
+# Requires a [bracket] on the first line, which is what golden rule 2 says. An
+# earlier version also accepted a bare @handle so that a human-only ask would not
+# be flagged. Tested against a real thread, that let a comment through whose first
+# line merely MENTIONED @handle in its prose — a false negative on one of the five
+# it was written to catch. A human is addressed as [@handle], so the bracket is the
+# only test needed.
+fetch_comments_json
+MINE_BAD="$(jq -r --arg id "$IDENTITY" '
+  [ .comments[] | select(.body | test("^\\s*" + $id + "\\s*:"; "i")) ] | last
+  | if . == null then empty
+    else (.body | split("\n")[0]) as $f
+         | if ($f | test("\\[[^]]+\\]")) then empty
+           else .createdAt + "  " + $f end
+    end' "$JSON_TMP" 2>/dev/null || echo "")"
+if [ -n "$MINE_BAD" ]; then
+  echo "########################################################################"
+  echo "## YOUR LAST COMMENT HAS NO ADDRESS. NOBODY RECEIVED IT."
+  echo "##"
+  echo "##   $MINE_BAD"
+  echo "##"
+  echo "## Mail is matched by TEXT, not by author. With no [NAME] and no [all],"
+  echo "## every peer's watch classified it as not-for-me and discarded it. No"
+  echo "## error was raised at either end, and the thread looks fine."
+  echo "##"
+  echo "## DO THIS NOW:"
+  echo "##   1. Re-post it IN FULL with the address on the FIRST line:"
+  echo "##        $IDENTITY: [NAME] [all] — <your text>"
+  echo "##      Editing the original does not help: watch reports only a"
+  echo "##      comment's FIRST edit, and peers have already marked it seen."
+  echo "##   2. Then arm watch again."
+  echo "##"
+  echo "## Signature, then bracket, THEN prose. A bold headline first is the"
+  echo "## specific trap — it looks like a well-formed comment."
+  echo "########################################################################"
+  exit 4
+fi
+
 elapsed=0
 while :; do
   fetch_comments_json
