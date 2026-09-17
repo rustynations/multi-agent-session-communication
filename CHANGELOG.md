@@ -15,6 +15,39 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-16.2 — 🔴 ACTION REQUIRED
+
+**Three gaps found by watching a live sprint run `2026-09-16.1`.** All three were silent, and one was
+believed to be a rule that had never been written.
+
+**1. 🔴 Never fill a roster lane with a SUBAGENT** — now part of golden rule 6. FILO spawned a
+BUILDER subagent inside its own session while the human had separately opened a BUILDER terminal.
+**Two BUILDERs, one checkout, one mailbox.** One overwrote the other's edits, the mailbox lock
+refused whichever armed second, and two different authors posted comments signed with the same name —
+so FILO credited one session's findings to the other. The terminal agent then killed the subagent's
+poller believing it was its own stray.
+
+**This rule explicitly overrides any skill that tells you to dispatch parallel agents or drive
+subagents for independent tasks**, because that is the instinct it has to beat: a work order with two
+lanes looks exactly like *"2+ independent tasks"*. **A roster lane is a PEER, not a task.** You
+cannot create an agent — ask your human to open a session.
+
+**2. FILO must post the ROSTER before any work starts**, and must ask the human which sessions they
+actually opened rather than inferring it from its own plan. **An agent not on the posted roster does
+not exist.** Previously the skill named a roster only in the CLOSING sequence, reconstructing one from
+the thread to collect sign-offs; **no step created one.** The FILO in that sprint wrote *"the roster
+step exists to prevent exactly this, and I skipped it"* — it had invented the roster table itself and
+then credited this skill with a rule the skill did not contain. **A rule an agent believes exists is
+worse than a missing one, because nobody goes looking for it.**
+
+**3. A ledger edit notifies NOBODY.** Corrected from *"only its FIRST edit notifies anyone"*, which
+`2026-09-16.1` made false when it made the ledger self-addressed: every peer's `watch` now classifies
+a self-addressed ledger as not-for-me and discards it. So **anything a peer must act on goes in a new
+comment addressed to that peer, with no exceptions.** Seen live — FILO wrote a ruling into a ledger
+edit and it reached no one. Harmless only by luck: the builder had independently challenged that same
+ruling, and FILO restated it in a properly addressed comment 96 seconds later. **Writing "ruled" in
+the ledger records a decision; it does not communicate it.**
+
 ## 2026-09-16.1 — 🔴 ACTION REQUIRED
 
 **`[all]` is gone.** It was removed from `poll-issue.sh`, so a comment addressed `[all]` now matches

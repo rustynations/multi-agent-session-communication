@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-16.1 -->
+<!-- Version: 2026-09-16.2 -->
 
 # Multi-Agent Session
 
@@ -54,6 +54,14 @@ Missing either? **STOP and ask the user.** Do not guess.
 6. **Never use a direct message tool.** The issue is the only channel — a session-to-session
    message leaves no record for your human, a restarted agent, or an agent on another machine.
    Blocked on a peer? Post it on the thread **and** say it in your own window.
+   🔴 **And never fill a roster lane with a SUBAGENT.** Every agent on the roster is a **separate
+   peer session** with its own identity and its own watermark. A subagent inherits your identity,
+   your mailbox and your working tree, so **two writers collide on all three at once**: one
+   overwrites the other's files, the mailbox lock refuses whichever arms second, and the thread
+   shows one name for two authors — so a peer cannot tell you apart, and neither can you.
+   **This overrides any skill that tells you to dispatch parallel agents or drive subagents for
+   independent tasks. A roster lane is not an independent task; it is a PEER.** Need another
+   agent? Ask your human to open a session. You cannot create one.
 7. **Arm the watcher as its own tool call** — never joined to another command — **and read its
    output. Background it via your harness's flag, never a shell `&`.** A notification anywhere
    in a turn means the turn is not over until you have armed and read.
@@ -116,6 +124,11 @@ Not FILO? Skip to **Start-up**.
 ### Publish the shape on the thread
 
 8. Settle these with the human, then post them:
+   - 🔴 **The ROSTER — every agent by name, before any work starts.** Ask your human which
+     sessions they have actually opened; **do not infer the roster from your own plan.** State on
+     the thread that each name is a separate peer session. **An agent not on the posted roster
+     does not exist** — if a comment arrives signed with a name you did not publish, say so
+     immediately, because that is two writers on one checkout and it is silent.
    - **Who issues asks to the human** — exactly one agent. Everyone else reports state freely
      and names who they take instructions from.
    - **Who pushes / deploys** — one designated actor for anything outward-facing.
@@ -282,8 +295,13 @@ by the reader, so a self-addressed ledger wakes nobody and stays editable. **The
 comment you edit; `[NO REPLY]` is append-only** — so this keeps that rule absolute, with no
 exception to remember.
 
-> **The ledger is a PULL surface. Only its FIRST edit notifies anyone.** Read it when you need
-> state, and **put anything a peer must act on in a new comment too.**
+> 🔴 **The ledger is a PULL surface. A ledger edit notifies NOBODY — not once, not the first
+> time.** It is self-addressed, so every peer's `watch` classifies it as not-for-me and discards
+> it. Read the ledger when you need state.
+>
+> **So ANYTHING a peer must act on goes in a NEW comment, addressed to that peer. No exceptions.**
+> A ruling written only into the ledger has not been delivered, and nothing reports that. Writing
+> *"ruled"* in the ledger records the decision; it does not communicate it.
 
 > 🔴 **NEVER `gh issue comment --edit-last`.** It means *the last comment by the authenticated
 > user*, and every agent shares one login — **so it edits whoever spoke last.** A `PATCH` is
@@ -585,6 +603,10 @@ exists.
 | **Naming every peer instead of `[all]`** | Same failure, same cost. Address only who must ACT. |
 | **Broadcasting an acceptance or a ruling** | To the ONE agent whose work changes. Woken peers generate more checks, which is how a sprint runs away. |
 | **Editing a `[NO REPLY]` comment** | It is append-only. Post a correction below it. |
+| **Filling a roster lane with a subagent** | Every agent is a separate peer session. A subagent shares your identity, mailbox and working tree — it collides on all three, silently. |
+| **Starting work before the roster is posted** | Post every agent by name first, and ask the human which sessions they actually opened. |
+| **A comment signed with a name not on the roster** | Two writers on one checkout. Say so on the thread immediately; do not work out which is which by editing. |
+| **Putting a ruling only in the ledger** | A ledger edit notifies nobody. New comment, addressed to the agent who must act. |
 | Addressing an agent with `@` | Use brackets. `@` is for real accounts. |
 | Re-answering old comments | Run `init` once at start; trust the watermark. |
 | Polling with a tight loop in the LLM | Never. `watch` blocks in bash, not in tokens. |
