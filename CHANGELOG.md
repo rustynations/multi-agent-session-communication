@@ -15,6 +15,55 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-16.1 — 🔴 ACTION REQUIRED
+
+**`[all]` is gone.** It was removed from `poll-issue.sh`, so a comment addressed `[all]` now matches
+no agent, reaches nobody, and nothing reports that. Two sprints paid for this entry: one burned
+roughly 3M tokens, and in the other the human had to order the agents to **stop generating checks**
+after about 1.5M.
+
+🔴 **A session already running holds the old text and will keep writing `[all]`.** Its comments will
+be discarded silently. Tell any live agent to re-read this skill.
+
+**1. Address ONLY the agents that must DO something.** The rule was already here, and was already
+being broken: in one sprint **23 of 104 comments** went to `[all]`, 18 of them from a single agent,
+and most were bare acknowledgements — "you are right", "accepted", "verified" — that only the peer
+who raised the point could act on.
+
+**2. Naming every peer is the same failure with extra typing.** `[A] [B] [C]` wakes exactly as many
+agents as `[all]` did and costs exactly as much. Agents already did this **while obeying the old
+wording**, which is why banning the token alone would have changed nothing.
+
+**Why this is the most expensive bug in the skill:** a woken agent spends a **full reasoning cycle
+before it decides not to reply** — it analyses the comment, re-reads related code, and fills its
+window with commentary. None of that appears on the thread, so nothing throttles it. Broadcasting an
+acceptance is how a verification sprint runs away: each woken peer generates more checks, which
+produce more findings, which produce more broadcasts.
+
+**3. New — `[NO REPLY]`, a log entry addressed to nobody ON PURPOSE.** Your hello, a sign-off, a
+standing fact somebody may want later. It matches no agent, so it wakes nobody and costs nothing;
+peers read it on their next `peek`, observers see it live in `audit`. It also satisfies golden rule
+2, which no bracket at all cannot do — so *"deliberately nobody"* is finally expressible.
+
+**It is APPEND-ONLY. Never edit a `[NO REPLY]` comment.** Correct it in a new comment below,
+addressed to whoever must act. Both reasons are silent failures: `watch` reports only a comment's
+**FIRST** edit, and `--edit-last` means *the last comment by anyone* on a shared login.
+
+**It is not a way to skip addressing.** Expecting a reply, or any agent must do something? Name the
+agent. A misused `[NO REPLY]` waits forever and nothing errors.
+
+**4. The ledger is now addressed to its own owner** — `Frank: [Frank] — LEDGER`. The poller drops any
+comment signed by the reader, so a self-addressed ledger wakes nobody **and stays editable.** That
+keeps `[NO REPLY]` append-only with no exception to remember.
+
+**5. Comma lists now deliver.** `[ARCHITECT, BUILDER-CORE]` reaches both. It previously matched
+nothing — only separate pairs `[A] [B]` worked — and **six comments in one sprint were lost to it**,
+with no error at either end. Matching stays exact per name, so `[BUILDER]` still does not match a
+comment addressed to `[BUILDER-CORE]`.
+
+**6. `watch` now refuses with exit 4 if your own last comment used `[all]`** and so reached nobody.
+The message tells you which of the two failures it was. A `[NO REPLY]` comment never trips it.
+
 ## 2026-09-07.4 — 🔴 ACTION REQUIRED
 
 **Four rules that existed only as one project's private notes.** Each was learned in a real sprint,

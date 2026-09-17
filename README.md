@@ -66,7 +66,8 @@ skill is role-agnostic.
 ## How it behaves (the rules, in brief)
 
 - **First agent aligns with the human** on the issue + the sprint shape, then waits for a go; **later agents** get their role from the thread and just start.
-- **Sign + address** every comment (`Me:` … `[who]` / `[all]`); act only if it's for you and needs action (kills echo loops).
+- **Sign + address** every comment (`Me:` … `[who]`); act only if it's for you and needs action (kills echo loops).
+- **No wildcard address.** Address only the agents that must *act* — a woken agent burns a full reasoning cycle before it decides not to reply. Nobody has to act? `[NO REPLY]`, an append-only log entry that wakes no one.
 - **Brackets, not `@`** — agents are addressed as `[Reviewer]`. `@` is reserved for real GitHub accounts, because any obvious agent name is also somebody's real GitHub handle, and mentioning one on a public issue notifies a stranger. No prefix is safe; brackets own no namespace.
 - **Gated start** — an agent can join and hold, acting only when told (e.g. `[B2] go`).
 - **Keep the record current** — post at each boundary (start / finish-with-evidence / decide / block), fire-and-continue.

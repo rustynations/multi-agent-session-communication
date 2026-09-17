@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-07.4 -->
+<!-- Version: 2026-09-16.1 -->
 
 # Multi-Agent Session
 
@@ -35,14 +35,17 @@ Missing either? **STOP and ask the user.** Do not guess.
 ## The ten golden rules
 
 1. **Sign** every comment — start it with `<identity>:` (e.g. `Frank:`).
-2. **Address** every comment — name who it is for in **square brackets**: `[Builder]` or
-   `[all]`. Brackets, never `@`. **`@` is reserved for real GitHub accounts** — every obvious
+2. **Address** every comment — name who it is for in **square brackets**: `[Builder]`, or
+   `[Builder] [Reviewer]` as **separate pairs** (a comma list in one pair, `[Builder, Reviewer]`,
+   also works). Brackets, never `@`. **`@` is reserved for real GitHub accounts** — every obvious
    agent name is also somebody's real handle.
    **Put it on the FIRST LINE, after your signature and BEFORE any headline:**
    `Frank: [Builder] — **finding**…`. A bold headline first feels like a well-formed comment and
    is how the address gets dropped.
-   **Never zero addresses.** No bracket means nobody receives it and nothing reports that. If
-   nobody must act, address the ledger owner alone.
+   **Address ONLY the agents that must DO something. There is no `[all]`** — see
+   **Address the AGENT WHO ACTS**. Every extra name spends a peer's full reasoning cycle.
+   **Never zero addresses.** No bracket means nobody receives it and nothing reports that.
+   Nobody has to act? Use `[NO REPLY]` — see **The `[NO REPLY]` log**.
 3. **Watermark** — never re-read old comments. The poll script tracks this.
 4. **Act only if it is for you AND needs action.** A plain "ok / thanks" ends the chain.
    Reply to it and you start an echo loop. Silence is allowed.
@@ -187,7 +190,7 @@ WM="$HOME/.claude/mas-state/$(printf '%s' "$REPO" | tr '/' '-')-${ISSUE}-${ME}.t
 **Step 2 — announce you are here:**
 
 ```
-gh issue comment "$ISSUE" --repo "$REPO" --body "$ME: [all] — online, watching #$ISSUE."
+gh issue comment "$ISSUE" --repo "$REPO" --body "$ME: [NO REPLY] — online, watching #$ISSUE."
 ```
 
 **Step 3 — make your opening move, if you have one.** Hold the first action? DO it now and post
@@ -228,9 +231,11 @@ Read the exit code:
   - **If it means your goal is met**, do not fall silent — post the stop token.
 - **42** → stop token. Post `"$ME: signing off."`, stop, and tell the human.
 - **10** → nothing yet. Run `watch` again.
-- **4** → **your own last comment carried no address, so nobody received it.** Re-post it with
-  `[NAME]` or `[all]` on the first line, then arm `watch` again. It refuses rather than blocking,
+- **4** → **your own last comment reached nobody** — it carried no address, or it used the dead
+  `[all]`. The message tells you which. Re-post it with `[NAME]` on the first line — or
+  `[NO REPLY]` if nobody has to act — then arm `watch` again. It refuses rather than blocking,
   because a warning you only see 9 minutes later is how five comments in a row get lost.
+  **A `[NO REPLY]` comment never trips this** — it is addressed to nobody on purpose.
 - **anything else** (`3` and `4` aside) → **the HOST killed your watcher; nothing is lost.** Read
   the output file named in the notification, then arm a new pair. A repeat message is expected.
 
@@ -248,8 +253,8 @@ Then back to Step 4. That loop IS the session.
 ## Keep the record current
 
 The issue is the shared source of truth. **If it is not on the thread, nobody — agent or human
-— can see it.** Post (signed, `[all]` unless it is for someone), then keep working — do NOT
-wait for a reply — when:
+— can see it.** Post it — signed, addressed to whoever must act, or `[NO REPLY]` if that is nobody
+— then keep working. Do **NOT** wait for a reply. Post when:
 
 - You **start** a distinct piece of work, or **change your plan.**
 - You **finish** a unit of work, **with the raw evidence** — not "done."
@@ -271,6 +276,11 @@ file-and-line trace earns its length; the paragraphs around it do not.
 
 **One ledger comment, owned by the gate-holder — not FILO, who is likeliest to go deaf — edited
 in place: `item → owner → state`.** Comments carry new information; restating state is an edit.
+
+**Address the ledger to YOURSELF** — `Frank: [Frank] — LEDGER`. The poller drops any comment signed
+by the reader, so a self-addressed ledger wakes nobody and stays editable. **The ledger is the one
+comment you edit; `[NO REPLY]` is append-only** — so this keeps that rule absolute, with no
+exception to remember.
 
 > **The ledger is a PULL surface. Only its FIRST edit notifies anyone.** Read it when you need
 > state, and **put anything a peer must act on in a new comment too.**
@@ -328,12 +338,22 @@ reserved for the human.
 An answer addressed only to the asker is classified as not-for-me by the doer's watcher,
 **marked seen, and discarded.** No error either end.
 
-- Answering a question? Address **the asker AND the doer.** Unsure → `[all]`.
-- **`[all]` is for what changes what a peer must DO** — a release, an authorization, a stop, a
-  frozen list. **A ruling that only changes one agent's work goes to that agent alone.**
-- **Over-addressing is an addressing failure too, and it looks like diligence.** An agent woken by
-  traffic it has no action on starts re-agreeing and re-litigating a settled thing. Losing mail is
-  invisible; broadcasting it is noise. **Both are addressing bugs.**
+- Answering a question? Address **the asker AND the doer.** Cannot name a doer? Then nobody has to
+  act — post it `[NO REPLY]`.
+- **There is no `[all]`.** It was removed from the poller. A bracket matching no agent wakes
+  nobody, so an `[all]` comment reaches nobody and nothing reports that.
+- **Naming every peer is the same failure with extra typing.** `[A] [B] [C]` wakes exactly as many
+  agents as `[all]` did and costs exactly as much. The rule is not about the token — it is
+  **who must ACT.**
+- **A ruling, an acceptance or an agreement goes to the ONE agent whose work changes.** "You are
+  right", "accepted", "verified" — the peer who raised it is the only one who acts on it. Sending
+  that to everyone is how a verification sprint runs away: each woken peer generates more checks,
+  which produce more findings, which produce more broadcasts.
+- **Over-addressing looks like diligence and is the most expensive bug in this skill.** A woken
+  agent spends a **full reasoning cycle before it decides not to reply** — it analyses the comment,
+  re-reads related code, and fills its window with commentary. **That cost is invisible on the
+  thread**, which is why nothing stops it. Losing mail is invisible too. **Both are addressing
+  bugs.**
 - Waiting on an answer that should have come? It may have gone to somebody else. **`peek` —
   `watch` cannot show you what it already discarded.**
 - **Ask for acknowledgement at a boundary, not when you suspect loss** — suspicion never fires,
@@ -344,6 +364,25 @@ An answer addressed only to the asker is classified as not-for-me by the doer's 
   your claim Y"* is enough. **And if you are the author, on hearing it run a CHECK — do not
   re-read.** Check the method, not the conclusion: a right answer resting on a proof that cannot
   establish it is the dangerous kind, because nothing forces a re-check.
+
+## The `[NO REPLY]` log
+
+Some comments are for the **record**, not for anybody: your hello, a sign-off, a standing fact
+somebody may want later. Address those `[NO REPLY]`.
+
+`[NO REPLY]` matches no agent, so **it wakes nobody and costs nothing.** A peer reads it when it
+next runs `peek`; an observer in `audit` sees it live. It also satisfies golden rule 2, so it is how
+you say *"addressed to nobody ON PURPOSE"* — which no bracket at all cannot say.
+
+**It is a log: APPEND-ONLY. Never edit a `[NO REPLY]` comment.** Wrong? Post a correction below it,
+addressed to whoever must act on the correction. Both reasons are silent failures — see the ledger
+warnings above: **only a comment's FIRST edit notifies anyone**, and **`--edit-last` means "last by
+ANYONE"** on a shared login.
+
+**It is not a way to skip addressing.** Expecting a reply, or any agent must do anything? Then it is
+not `[NO REPLY]` — name the agent. A misused `[NO REPLY]` waits forever and nothing errors.
+
+**Keep them rare.** Routine progress belongs in the ledger, not in a new comment.
 
 ## Authority scales with reversibility
 
@@ -464,8 +503,10 @@ With several agents writing at once, **a close always races them.** Someone is u
 when you decide it is over, and their comment lands after your close comment — unread and
 looking ignored. Ten seconds is enough.
 
-1. **Post a last call** — `[all] closing in ~60s unless someone objects` — then `watch` through
-   it. One cheap round trip lets in-flight work land.
+1. **Post a last call** — **name every agent on the roster**, `[A] [B] [C] closing in ~60s unless
+   someone objects` — then `watch` through it. One cheap round trip lets in-flight work land.
+   **This is one of the few times every agent genuinely must act**, so naming them all is correct
+   here and nowhere near as often as it feels.
 2. **An objection BLOCKS the close until you state its disposition.** Precedence, not timing.
    - **An objection must be declared: `OBJECT:` on the FIRST LINE, after your signature.** Golden
      rule 1 puts your identity at byte zero, so **match the first line and nothing else:**
@@ -539,8 +580,11 @@ exists.
 | Replying to every "ok / thanks" | Only reply if action is needed. Kill the echo. |
 | Forgetting to sign or address | Every comment starts `Me:` and names `[who]`. |
 | **A headline before the address** | Signature, bracket, THEN prose. A bold lead feels complete and drops the address — the comment then reaches nobody. |
-| **A comment with no bracket at all** | Nobody receives it and nothing errors. If nobody must act, address the ledger owner. |
-| **`[all]` on a ruling only one agent acts on** | Address that agent. `[all]` wakes peers who then re-agree with settled things. |
+| **A comment with no bracket at all** | Nobody receives it and nothing errors. If nobody has to act, use `[NO REPLY]`. |
+| **Using `[all]`** | It was removed. It matches no agent, so the comment reaches nobody and nothing errors. |
+| **Naming every peer instead of `[all]`** | Same failure, same cost. Address only who must ACT. |
+| **Broadcasting an acceptance or a ruling** | To the ONE agent whose work changes. Woken peers generate more checks, which is how a sprint runs away. |
+| **Editing a `[NO REPLY]` comment** | It is append-only. Post a correction below it. |
 | Addressing an agent with `@` | Use brackets. `@` is for real accounts. |
 | Re-answering old comments | Run `init` once at start; trust the watermark. |
 | Polling with a tight loop in the LLM | Never. `watch` blocks in bash, not in tokens. |
@@ -582,7 +626,7 @@ exists.
 | Running `init` on rejoin | It swallows the mail you came back for. |
 | Relaying authority for a one-way action | Get the human to post it, addressed to the actor. |
 | Standing down because the issue closed | Golden rule 9. |
-| **Answering only the agent who asked** | Address **the doer too**, or `[all]`. |
+| **Answering only the agent who asked** | Address **the doer too** — by name. |
 | Closing while peers are mid-post | Post a last call and `watch` through it. |
 | Trusting `gh issue close` to have closed it | It exits 0 on an already-closed issue. Check `closedAt`. |
 | Reading the thread with `gh api` and no `--paginate` | You only see the first 30 comments. |
@@ -601,8 +645,9 @@ exists.
 
 - The watcher blocks up to ~9 min per call, then exits 10 so you re-run it. **Keep re-running —
   for hours if the task takes that long.**
-- All agents share one GitHub login, so mail is matched by TEXT (`[name]` / `[all]`), not by
-  author. That is why signing and addressing are mandatory.
+- All agents share one GitHub login, so mail is matched by TEXT (`[name]`), not by author. That is
+  why signing and addressing are mandatory. **There is no wildcard address** — `[NO REPLY]` matches
+  nobody by design, and so does any other name that is not an agent's.
 - Modes: `init` (mark history seen) · `peek` (read without consuming) · `watch` (block for your
   mail) · `audit` (block for all traffic — observers).
 - Every call prints the **resolved absolute** watermark path as its first line. If that path

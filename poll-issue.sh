@@ -28,9 +28,17 @@
 #        listening — go read the output of the watcher you already armed.
 #
 # Filtering in watch (text-based, because every agent shares one GitHub login):
-#   - A comment is "for you" if its body contains [<identity>] or [all].
+#   - A comment is "for you" if a bracket group names you: [<identity>], or a
+#     comma list containing it, [<identity>, Other]. Several groups also work:
+#     [A] [B]. Matching is exact per name, so [BUILDER] does NOT match a comment
+#     addressed to [BUILDER-CORE].
 #     Brackets, not @ — an @Name is a real GitHub handle owned by a stranger, and
 #     mentioning it on a public issue notifies them. Brackets own no namespace.
+#   - THERE IS NO WILDCARD. [all] was removed deliberately. It woke every agent,
+#     and a woken agent spends a full reasoning cycle before it decides not to
+#     reply — a cost invisible on the thread, which is why it ran away. A comment
+#     addressed [all] now matches nobody. So does [NO REPLY], which is the
+#     supported way to say "for the record, nobody must act".
 #   - A comment from you is skipped: it starts with "<identity>:".
 #   - Plain acks addressed to you still return; YOU decide if they need action.
 #
@@ -418,8 +426,8 @@ if [ -z "$WM" ]; then
     echo "## DO THIS NOW:"
     echo "##   1. Read the thread by hand:"
     echo "##      gh issue view $ISSUE --repo $REPO --comments"
-    echo "##   2. Act on anything addressed to [$IDENTITY] or [all] that you"
-    echo "##      have not already handled."
+    echo "##   2. Act on anything addressed to [$IDENTITY] that you have not"
+    echo "##      already handled. That includes a comma list, [$IDENTITY, Other]."
     echo "##   3. Post on the thread that mail may have been lost, so whoever"
     echo "##      sent it can re-send the FULL message (not just a trigger word)."
     echo "##   4. Use this SAME absolute path for every later watch call."
@@ -444,32 +452,64 @@ fi
 # it was written to catch. A human is addressed as [@handle], so the bracket is the
 # only test needed.
 fetch_comments_json
+# Two ways a comment reaches nobody, and [NO REPLY] is NOT one of them — that one
+# is addressed to nobody ON PURPOSE, so it must pass silently. The distinction is
+# "does the first line name at least one thing that is not the dead [all] token".
 MINE_BAD="$(jq -r --arg id "$IDENTITY" '
   [ .comments[] | select(.body | test("^\\s*" + $id + "\\s*:"; "i")) ] | last
   | if . == null then empty
     else (.body | split("\n")[0]) as $f
-         | if ($f | test("\\[[^]]+\\]")) then empty
-           else .createdAt + "  " + $f end
+         | ( if ($f | test("\\[[^]]+\\]")) then
+               ( [ $f | scan("\\[([^]]*)\\]") | .[0] | split(",")[]
+                   | gsub("^[ \t]+|[ \t]+$"; "") | ascii_downcase ] ) as $names
+               | if ($names | map(select(. != "all")) | length) == 0
+                 then "ALL" else "OK" end
+             else "NOADDR" end ) as $why
+         | if $why == "OK" then empty
+           else $why + "\t" + .createdAt + "  " + $f end
     end' "$JSON_TMP" 2>/dev/null || echo "")"
 if [ -n "$MINE_BAD" ]; then
+  MINE_WHY="${MINE_BAD%%$'\t'*}"
+  MINE_LINE="${MINE_BAD#*$'\t'}"
   echo "########################################################################"
-  echo "## YOUR LAST COMMENT HAS NO ADDRESS. NOBODY RECEIVED IT."
-  echo "##"
-  echo "##   $MINE_BAD"
-  echo "##"
-  echo "## Mail is matched by TEXT, not by author. With no [NAME] and no [all],"
-  echo "## every peer's watch classified it as not-for-me and discarded it. No"
-  echo "## error was raised at either end, and the thread looks fine."
-  echo "##"
-  echo "## DO THIS NOW:"
-  echo "##   1. Re-post it IN FULL with the address on the FIRST line:"
-  echo "##        $IDENTITY: [NAME] [all] — <your text>"
-  echo "##      Editing the original does not help: watch reports only a"
-  echo "##      comment's FIRST edit, and peers have already marked it seen."
-  echo "##   2. Then arm watch again."
-  echo "##"
-  echo "## Signature, then bracket, THEN prose. A bold headline first is the"
-  echo "## specific trap — it looks like a well-formed comment."
+  if [ "$MINE_WHY" = "ALL" ]; then
+    echo "## YOUR LAST COMMENT USED [all]. THAT ADDRESS DOES NOT EXIST."
+    echo "##"
+    echo "##   $MINE_LINE"
+    echo "##"
+    echo "## [all] was REMOVED from this poller. It matches no agent, so every"
+    echo "## peer's watch classified this as not-for-me and discarded it. No error"
+    echo "## was raised at either end, and the thread looks fine."
+    echo "##"
+    echo "## DO THIS NOW:"
+    echo "##   1. Decide who must ACT on it. Re-post IN FULL, addressed BY NAME:"
+    echo "##        $IDENTITY: [NAME] [NAME] — <your text>"
+    echo "##      Nobody has to act? Use [NO REPLY] instead."
+    echo "##   2. Then arm watch again."
+    echo "##"
+    echo "## Address ONLY agents that must DO something. Naming every peer is the"
+    echo "## same failure as [all] — each name spends a peer's full reasoning"
+    echo "## cycle, even when it decides not to reply."
+  else
+    echo "## YOUR LAST COMMENT HAS NO ADDRESS. NOBODY RECEIVED IT."
+    echo "##"
+    echo "##   $MINE_LINE"
+    echo "##"
+    echo "## Mail is matched by TEXT, not by author. With no [NAME], every peer's"
+    echo "## watch classified it as not-for-me and discarded it. No error was"
+    echo "## raised at either end, and the thread looks fine."
+    echo "##"
+    echo "## DO THIS NOW:"
+    echo "##   1. Re-post it IN FULL with the address on the FIRST line:"
+    echo "##        $IDENTITY: [NAME] — <your text>"
+    echo "##      Nobody has to act? Use [NO REPLY] instead."
+    echo "##      Editing the original does not help: watch reports only a"
+    echo "##      comment's FIRST edit, and peers have already marked it seen."
+    echo "##   2. Then arm watch again."
+    echo "##"
+    echo "## Signature, then bracket, THEN prose. A bold headline first is the"
+    echo "## specific trap — it looks like a well-formed comment."
+  fi
   echo "########################################################################"
   exit 4
 fi
@@ -494,9 +534,13 @@ while :; do
     if [ -n "$FLIPPED" ]; then
       FIDS="$(printf '%s' "$FLIPPED" | jq -R . | jq -s -c .)"
       EDITED_OUT="$(jq -r --argjson ids "$FIDS" --arg id "$IDENTITY" '
+        def addressed($me):
+          [ scan("\\[([^]]*)\\]") | .[0] | split(",")[]
+            | gsub("^[ \t]+|[ \t]+$"; "") | ascii_downcase ]
+          | index($me | ascii_downcase) != null;
         [ .comments[]
           | select((.id|tostring) as $i | $ids | index($i))
-          | select( (.body | test("\\[" + $id + "\\]"; "i")) or (.body | test("\\[all\\]"; "i")) )
+          | select( .body | addressed($id) )
           | select( (.body | test("^\\s*" + $id + "\\s*:"; "i")) | not )
         ] | .[] | "*** EDITED AFTER YOU SAW IT *** [" + .createdAt + "]\n" + .body + "\n"
       ' "$JSON_TMP" 2>/dev/null || echo "")"
@@ -569,8 +613,12 @@ while :; do
     [ -z "$LEGACY" ] && LEGACY=0
 
     MAIL="$(printf '%s' "$NEW" | jq --arg id "$IDENTITY" '
+      def addressed($me):
+        [ scan("\\[([^]]*)\\]") | .[0] | split(",")[]
+          | gsub("^[ \t]+|[ \t]+$"; "") | ascii_downcase ]
+        | index($me | ascii_downcase) != null;
       [ .[]
-        | select( (.body | test("\\[" + $id + "\\]"; "i")) or (.body | test("\\[all\\]"; "i")) )
+        | select( .body | addressed($id) )
         | select( (.body | test("^\\s*" + $id + "\\s*:"; "i")) | not )
       ]' 2>/dev/null || echo '[]')"
     [ -z "$MAIL" ] && MAIL='[]'
