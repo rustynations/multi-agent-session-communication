@@ -15,6 +15,39 @@ or a running session to correct. Everything else takes effect on its own.
 
 ---
 
+## 2026-09-17.1
+
+**`2026-09-16.2` made FILO ask a question it cannot use. Removed.** That release told FILO to *"ask
+your human which sessions they have actually opened"*. Watched live, a FILO quoted the rule and then
+put two modal questions to its operator: *"Is the BUILDER session already open in another window?"*
+and *"What name should the second agent sign as — BUILDER or BUILD?"*
+
+**Then it answered the first one itself, correctly:** *"the thread has 0 comments. Nobody has checked
+in. A BUILDER cannot check in before there is anything to read."* **The thread is empty by definition
+when FILO writes the roster**, so the answer cannot change what FILO does — it posts the roster
+either way. A question whose answer changes nothing is noise, and this one interrupted the operator
+twice before any work started.
+
+The name question was worse: **a name is a detail, not a decision.**
+
+So: **DECLARE the roster; never ask for it.** Pick the names. The rule that actually catches a second
+writer is the other half, which stays and now says so explicitly: **an agent not on the posted roster
+does not exist — if a name you did not publish signs a comment, say so immediately.** That check
+happens at the moment a collision is real, rather than at setup when it cannot be.
+
+**Also removed: FILO explaining how to start the other sessions.** The operator opens a window and
+types `/multi-agent-session <issue> <NAME>`. Naming the roster IS the handoff.
+
+**And the skill now says where its own inputs come from.** It only ever said *"STOP and ask the
+user"* for a missing issue or identity, and never that both normally arrive as arguments —
+`/multi-agent-session 220 BUILDER`. Take them from there and start; do not re-ask for what you were
+handed.
+
+**What `2026-09-16.2` got right is unchanged.** Golden rule 6 — never fill a roster lane with a
+subagent — is what prevents the duplicate-writer collision. The setup question was never doing that
+work, and the sprint that exposed this ran two waves, twenty-one verified items and zero protocol
+failures with the ban in place.
+
 ## 2026-09-16.2 — 🔴 ACTION REQUIRED
 
 **Three gaps found by watching a live sprint run `2026-09-16.1`.** All three were silent, and one was

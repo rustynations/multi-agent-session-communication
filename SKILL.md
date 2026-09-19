@@ -2,7 +2,7 @@
 name: multi-agent-session
 description: Use when this Claude Code session is one of several live agents collaborating on the same GitHub issue at once — a multi-agent session, distinct from spawning subagents. Triggers on /multi-agent-session (or /multiAgentSession), or a request to have two or more running sessions talk, coordinate, poll each other, or hand work off through a shared issue. Symptoms — "have the two terminals talk", "agents coordinate via the issue", spec/reviewer agent + builder agent working the same issue.
 ---
-<!-- Version: 2026-09-16.2 -->
+<!-- Version: 2026-09-17.1 -->
 
 # Multi-Agent Session
 
@@ -21,12 +21,15 @@ This is NOT a subagent you spawned. These are peer sessions you cannot see direc
 > tells you how to do your lane's work and never assigns you a second lane. **If it is not on
 > the thread, it is not your job.**
 
-## Required inputs — ask if missing
+## Required inputs
 
 1. **Issue number** — e.g. `42`
 2. **Your identity** — a readable role name given to you, e.g. `SPEC`, `BUILD`, `CHECK`
 
-Missing either? **STOP and ask the user.** Do not guess.
+**Both normally arrive as arguments:** `/multi-agent-session 220 BUILDER`. Take them from there and
+start — **do not re-ask for what you were handed.**
+
+Genuinely missing one? **STOP and ask.** Do not guess.
 
 - **Repo:** default to `gh repo view --json nameWithOwner -q .nameWithOwner`. Elsewhere? Confirm.
 - **Your human's alias:** never ask, never hardcode. Derive it: `gh api user -q .login`.
@@ -124,11 +127,15 @@ Not FILO? Skip to **Start-up**.
 ### Publish the shape on the thread
 
 8. Settle these with the human, then post them:
-   - 🔴 **The ROSTER — every agent by name, before any work starts.** Ask your human which
-     sessions they have actually opened; **do not infer the roster from your own plan.** State on
-     the thread that each name is a separate peer session. **An agent not on the posted roster
-     does not exist** — if a comment arrives signed with a name you did not publish, say so
-     immediately, because that is two writers on one checkout and it is silent.
+   - 🔴 **The ROSTER — every agent by name, before any work starts.** **DECLARE it; do not ask for
+     it.** The thread is empty when you write it, so nobody can have checked in yet and the answer
+     would change nothing — you post the roster either way. Pick the names yourself; they are a
+     detail, not a decision. State that each name is a separate peer session.
+     **An agent not on the posted roster does not exist** — if a comment arrives signed with a name
+     you did not publish, say so immediately, because that is two writers on one checkout and it is
+     silent. **That check, not a setup question, is what catches a second writer.**
+     **Do not tell your human how to start the other sessions.** They open a window and type
+     `/multi-agent-session <issue> <NAME>`. Naming the roster IS the handoff.
    - **Who issues asks to the human** — exactly one agent. Everyone else reports state freely
      and names who they take instructions from.
    - **Who pushes / deploys** — one designated actor for anything outward-facing.
@@ -604,7 +611,10 @@ exists.
 | **Broadcasting an acceptance or a ruling** | To the ONE agent whose work changes. Woken peers generate more checks, which is how a sprint runs away. |
 | **Editing a `[NO REPLY]` comment** | It is append-only. Post a correction below it. |
 | **Filling a roster lane with a subagent** | Every agent is a separate peer session. A subagent shares your identity, mailbox and working tree — it collides on all three, silently. |
-| **Starting work before the roster is posted** | Post every agent by name first, and ask the human which sessions they actually opened. |
+| **Starting work before the roster is posted** | Post every agent by name first. |
+| **Asking whether the other session is open yet** | Declare the roster. The thread is empty when you write it, so the answer changes nothing and you post it either way. |
+| **Asking your human to approve an agent's NAME** | Pick it. A name is a detail, not a decision. |
+| **Telling your human what to paste to start a peer** | They open a window and type `/multi-agent-session <issue> <NAME>`. Naming the roster IS the handoff. |
 | **A comment signed with a name not on the roster** | Two writers on one checkout. Say so on the thread immediately; do not work out which is which by editing. |
 | **Putting a ruling only in the ledger** | A ledger edit notifies nobody. New comment, addressed to the agent who must act. |
 | Addressing an agent with `@` | Use brackets. `@` is for real accounts. |
